@@ -117,13 +117,29 @@ export const ModelSelection = ModelSelectionSource.pipe(
 );
 export type ModelSelection = typeof ModelSelection.Type;
 
-export const RuntimeMode = Schema.Literals([
+const RuntimeModeValue = Schema.Literals([
   "read-only",
   "approval-required",
   "auto-accept-edits",
   "auto",
   "full-access",
 ]);
+
+/**
+ * `read-only` is an internal child-agent capability added by the fork. Keep it
+ * decodable for persisted events and usable by provider adapters, but encode it
+ * as the upstream `approval-required` value so older desktop and mobile clients
+ * can continue to decode orchestration snapshots and event streams.
+ */
+export const RuntimeMode = RuntimeModeValue.pipe(
+  Schema.decodeTo(
+    RuntimeModeValue,
+    SchemaTransformation.transform({
+      decode: (value) => value,
+      encode: (value) => (value === "read-only" ? "approval-required" : value),
+    }),
+  ),
+);
 export type RuntimeMode = typeof RuntimeMode.Type;
 export const DEFAULT_RUNTIME_MODE: RuntimeMode = "full-access";
 export const ProviderInteractionMode = Schema.Literals(["default", "plan"]);

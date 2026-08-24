@@ -2,6 +2,7 @@ import { assert, it } from "@effect/vitest";
 import * as Effect from "effect/Effect";
 import * as Schema from "effect/Schema";
 
+import { ProjectId, ThreadId } from "./baseSchemas.ts";
 import {
   DEFAULT_PROVIDER_INTERACTION_MODE,
   DEFAULT_RUNTIME_MODE,
@@ -15,6 +16,7 @@ import {
   OrchestrationLatestTurn,
   ProjectCreatedPayload,
   ProjectMetaUpdatedPayload,
+  RuntimeMode,
   OrchestrationProposedPlan,
   OrchestrationSession,
   OrchestrationThread,
@@ -46,6 +48,7 @@ const decodeOrchestrationSession = Schema.decodeUnknownEffect(OrchestrationSessi
 const decodeOrchestrationThread = Schema.decodeUnknownEffect(OrchestrationThread);
 const decodeOrchestrationThreadShell = Schema.decodeUnknownEffect(OrchestrationThreadShell);
 const encodeThreadCreatedPayload = Schema.encodeEffect(ThreadCreatedPayload);
+const encodeRuntimeMode = Schema.encodeUnknownEffect(RuntimeMode);
 
 function getOptionValue(
   options: ReadonlyArray<{ id: string; value: unknown }> | undefined,
@@ -58,6 +61,36 @@ const decodeOrchestrationCommand = Schema.decodeUnknownEffect(OrchestrationComma
 const decodeOrchestrationEvent = Schema.decodeUnknownEffect(OrchestrationEvent);
 const decodeThreadMetaUpdatedPayload = Schema.decodeUnknownEffect(ThreadMetaUpdatedPayload);
 const decodeDispatchCommandError = Schema.decodeUnknownEffect(OrchestrationDispatchCommandError);
+
+it.effect("encodes internal read-only runtime mode for pre-fork clients", () =>
+  Effect.gen(function* () {
+    const encoded = yield* encodeRuntimeMode("read-only");
+
+    assert.strictEqual(encoded, "approval-required");
+  }),
+);
+
+it.effect("hides internal read-only mode inside encoded thread payloads", () =>
+  Effect.gen(function* () {
+    const encoded = yield* encodeThreadCreatedPayload({
+      threadId: ThreadId.make("agent-review-1"),
+      projectId: ProjectId.make("project-1"),
+      title: "Read-only review",
+      modelSelection: {
+        instanceId: ProviderInstanceId.make("claude"),
+        model: "claude-fable-5",
+      },
+      runtimeMode: "read-only",
+      interactionMode: "default",
+      branch: "main",
+      worktreePath: null,
+      createdAt: "2026-08-24T20:00:00.000Z",
+      updatedAt: "2026-08-24T20:00:00.000Z",
+    });
+
+    assert.strictEqual(encoded.runtimeMode, "approval-required");
+  }),
+);
 
 it.effect("decodes a dispatch error after its bootstrap thread was deleted", () =>
   Effect.gen(function* () {
