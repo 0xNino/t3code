@@ -4014,6 +4014,20 @@ export const makeClaudeAdapter = Effect.fn("makeClaudeAdapter")(function* (
           } satisfies PermissionResult;
         }
 
+        const runtimeMode = input.runtimeMode ?? "full-access";
+        if (runtimeMode === "read-only") {
+          if (toolName === "Read" || toolName === "Grep" || toolName === "Glob") {
+            return {
+              behavior: "allow",
+              updatedInput: toolInput,
+            } satisfies PermissionResult;
+          }
+          return {
+            behavior: "deny",
+            message: "This session is restricted to read-only repository inspection.",
+          } satisfies PermissionResult;
+        }
+
         // Handle AskUserQuestion: surface clarifying questions to the
         // user via the user-input runtime event channel, regardless of
         // runtime mode (plan mode relies on this heavily).
@@ -4043,7 +4057,6 @@ export const makeClaudeAdapter = Effect.fn("makeClaudeAdapter")(function* (
           } satisfies PermissionResult;
         }
 
-        const runtimeMode = input.runtimeMode ?? "full-access";
         if (runtimeMode === "full-access") {
           return {
             behavior: "allow",
@@ -4187,6 +4200,7 @@ export const makeClaudeAdapter = Effect.fn("makeClaudeAdapter")(function* (
       const ultracode = isClaudeUltracodeEffort(effort);
       const effectiveEffort = getEffectiveClaudeAgentEffort(effort, modelSelection?.model);
       const runtimeModeToPermission: Record<string, PermissionMode> = {
+        "read-only": "dontAsk",
         "auto-accept-edits": "acceptEdits",
         auto: "auto",
         "full-access": "bypassPermissions",
@@ -4197,21 +4211,25 @@ export const makeClaudeAdapter = Effect.fn("makeClaudeAdapter")(function* (
         ...(fastMode ? { fastMode: true } : {}),
         ...(ultracode ? { ultracode: true } : {}),
       };
-      const mcpSession = McpProviderSession.readMcpProviderSession(input.threadId);
+      const isReadOnly = input.runtimeMode === "read-only";
+      const mcpSession = isReadOnly
+        ? undefined
+        : McpProviderSession.readMcpProviderSession(input.threadId);
       // The attachments dir grant lets the agent Read/copy pasted images at
       // the paths ProviderService injects into the turn text, without an
       // approval prompt. It is a leaf directory holding only attachment
       // files; siblings like secrets/ and state.sqlite stay ungranted.
       const additionalDirectories = [
         ...(input.cwd ? [input.cwd] : []),
-        serverConfig.attachmentsDir,
+        ...(isReadOnly ? [] : [serverConfig.attachmentsDir]),
       ];
       const queryOptions: ClaudeQueryOptions = {
         ...(input.cwd ? { cwd: input.cwd } : {}),
         ...(apiModelId ? { model: apiModelId } : {}),
         pathToClaudeCodeExecutable: claudeBinaryPath,
         systemPrompt: { type: "preset", preset: "claude_code" },
-        settingSources: [...CLAUDE_SETTING_SOURCES],
+        settingSources: isReadOnly ? [] : [...CLAUDE_SETTING_SOURCES],
+        ...(isReadOnly ? { tools: ["Read", "Grep", "Glob"] } : {}),
         // `ultracode` is a Claude Code setting, not an API effort level. It is
         // normalized to `xhigh` above and paired with `settings.ultracode`.
         ...(effectiveEffort
@@ -4230,7 +4248,7 @@ export const makeClaudeAdapter = Effect.fn("makeClaudeAdapter")(function* (
         canUseTool,
         env: claudeEnvironment,
         additionalDirectories,
-        ...(Object.keys(extraArgs).length > 0 ? { extraArgs } : {}),
+        ...(!isReadOnly && Object.keys(extraArgs).length > 0 ? { extraArgs } : {}),
         ...(mcpSession
           ? {
               mcpServers: {

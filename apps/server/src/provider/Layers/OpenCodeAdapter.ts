@@ -1224,14 +1224,27 @@ export function makeOpenCodeAdapter(
               const server = yield* openCodeRuntime.connectToOpenCodeServer({
                 binaryPath,
                 serverUrl,
-                ...(options?.environment ? { environment: options.environment } : {}),
+                ...(input.runtimeMode === "read-only"
+                  ? {
+                      environment: {
+                        ...(options?.environment ?? process.env),
+                        OPENCODE_AUTO_SHARE: "false",
+                        OPENCODE_DISABLE_AUTOUPDATE: "true",
+                      },
+                    }
+                  : options?.environment
+                    ? { environment: options.environment }
+                    : {}),
               });
               const client = openCodeRuntime.createOpenCodeSdkClient({
                 baseUrl: server.url,
                 directory,
                 ...(server.external && serverPassword ? { serverPassword } : {}),
               });
-              const mcpSession = McpProviderSession.readMcpProviderSession(input.threadId);
+              const mcpSession =
+                input.runtimeMode === "read-only"
+                  ? undefined
+                  : McpProviderSession.readMcpProviderSession(input.threadId);
               if (mcpSession && !server.external) {
                 yield* runOpenCodeSdk("mcp.add", () =>
                   client.mcp.add({

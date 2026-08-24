@@ -32,7 +32,7 @@ it.effect("accepts an exact provider/model selection with reasoning options", ()
   }),
 );
 
-it.effect("does not expose child filesystem or runtime authority overrides", () =>
+it.effect("accepts only the constrained review workspace fields", () =>
   Effect.gen(function* () {
     const input = yield* decodeRun({
       operation: "start",
@@ -40,12 +40,18 @@ it.effect("does not expose child filesystem or runtime authority overrides", () 
         {
           prompt: "Review only.",
           modelSelection: { instanceId: "codex", model: "gpt-5.6-sol" },
-          cwd: "/tmp/unrelated",
+          access: "read-only",
+          workspacePath: "/tmp/sanitized-review",
+          cwd: "/tmp/ignored",
           runtimeMode: "full-access",
         },
       ],
     });
 
+    expect(input.agents?.[0]).toMatchObject({
+      access: "read-only",
+      workspacePath: "/tmp/sanitized-review",
+    });
     expect(input.agents?.[0]).not.toHaveProperty("cwd");
     expect(input.agents?.[0]).not.toHaveProperty("runtimeMode");
   }),

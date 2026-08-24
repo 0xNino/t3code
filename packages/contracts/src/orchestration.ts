@@ -118,6 +118,7 @@ export const ModelSelection = ModelSelectionSource.pipe(
 export type ModelSelection = typeof ModelSelection.Type;
 
 export const RuntimeMode = Schema.Literals([
+  "read-only",
   "approval-required",
   "auto-accept-edits",
   "auto",

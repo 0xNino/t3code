@@ -26,8 +26,26 @@ import {
 } from "@t3tools/contracts";
 
 import { ServerConfig } from "../../config.ts";
-import { grokPromptSettlementBelongsToContext, makeGrokAdapter } from "./GrokAdapter.ts";
+import {
+  grokPromptSettlementBelongsToContext,
+  makeGrokAdapter,
+  selectAutoRejectedPermissionOption,
+} from "./GrokAdapter.ts";
 const decodeGrokSettings = Schema.decodeSync(GrokSettings);
+
+it("prefers a durable ACP rejection option for read-only sessions", () => {
+  assert.equal(
+    selectAutoRejectedPermissionOption({
+      sessionId: "session-1",
+      toolCall: { toolCallId: "tool-1" },
+      options: [
+        { kind: "reject_once", name: "Reject once", optionId: "reject-once" },
+        { kind: "reject_always", name: "Always reject", optionId: "reject-always" },
+      ],
+    }),
+    "reject-always",
+  );
+});
 
 const __dirname = NodePath.dirname(NodeURL.fileURLToPath(import.meta.url));
 const mockAgentPath = NodePath.join(__dirname, "../../../scripts/acp-mock-agent.ts");

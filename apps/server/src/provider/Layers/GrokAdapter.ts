@@ -202,6 +202,16 @@ function selectAutoApprovedPermissionOption(
   );
 }
 
+export function selectAutoRejectedPermissionOption(
+  request: EffectAcpSchema.RequestPermissionRequest,
+): string | undefined {
+  return (
+    request.options.find((option) => option.kind === "reject_always")?.optionId.trim() ||
+    request.options.find((option) => option.kind === "reject_once")?.optionId.trim() ||
+    undefined
+  );
+}
+
 function completedStopReasonFromPromptResponse(
   response: EffectAcpSchema.PromptResponse | undefined,
 ): EffectAcpSchema.StopReason | null {
@@ -569,7 +579,10 @@ export function makeGrokAdapter(grokSettings: GrokSettings, options?: GrokAdapte
             threadId: input.threadId,
           });
 
-          const mcpSession = McpProviderSession.readMcpProviderSession(input.threadId);
+          const mcpSession =
+            input.runtimeMode === "read-only"
+              ? undefined
+              : McpProviderSession.readMcpProviderSession(input.threadId);
           const acp = yield* makeGrokAcpRuntime({
             grokSettings,
             ...(options?.environment ? { environment: options.environment } : {}),
@@ -677,6 +690,17 @@ export function makeGrokAdapter(grokSettings: GrokSettings, options?: GrokAdapte
                         },
                       };
                     }
+                  }
+                  if (input.runtimeMode === "read-only") {
+                    const rejectedOptionId = selectAutoRejectedPermissionOption(params);
+                    return rejectedOptionId === undefined
+                      ? { outcome: { outcome: "cancelled" as const } }
+                      : {
+                          outcome: {
+                            outcome: "selected" as const,
+                            optionId: rejectedOptionId,
+                          },
+                        };
                   }
                   const permissionRequest = parsePermissionRequest(params);
                   const requestId = ApprovalRequestId.make(yield* randomUUIDv4);

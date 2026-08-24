@@ -34,10 +34,24 @@ and accepts only descendants of the invoking thread. Traversal detects cycles.
 A restarted provider session in the same parent thread retains control of its
 durable children; unrelated threads do not.
 
-Children inherit the parent's project, branch, and worktree and are forced to
-`approval-required`. The tool schema exposes model choice and provider options,
-but no working-directory or runtime-mode override. Current limits are depth 2,
-eight active descendants, 32 unarchived descendants, and eight starts per call.
+Children default to the parent's project, branch, and worktree and are forced
+to `approval-required`. The tool schema exposes model choice and provider
+options, but no arbitrary runtime-mode override. A child may explicitly request
+the narrower `read-only` access policy. Only that policy accepts a custom
+working directory, and only after the server canonicalizes it, verifies it is
+beneath the operating-system temporary directory, and reads the fixed
+`.t3code-review-snapshot` attestation marker. The child thread stores that
+canonical path as its worktree with no branch.
+
+Provider adapters enforce read-only mode independently: Codex uses a read-only,
+networkless sandbox and removes MCP/web-search launch configuration; Claude
+loads only Read, Grep, and Glob with `dontAsk` and no settings sources or T3 MCP;
+OpenCode installs a deny-by-default permission ruleset; Cursor and Grok
+automatically choose a provider-supplied rejection option for every ACP
+permission request. All adapters omit the T3 MCP endpoint in read-only mode.
+
+Current limits are depth 2, eight active descendants, 32 unarchived descendants,
+and eight starts per call.
 
 ## Waiting without races
 

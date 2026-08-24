@@ -9,6 +9,11 @@ before sending.
 
 ## The Modes
 
+**Read only**: inspect the selected workspace without commands, edits, network
+tools, or T3 integrations. Provider settings and integrations that could add
+authority are not loaded into the review session. This mode is intended for
+independent code review and other untrusted inspection tasks.
+
 **Supervised**: ask before commands and file changes. The agent pauses and shows you what it
 wants to run or edit, and waits for approval. Work outside the workspace is restricted.
 
@@ -28,6 +33,8 @@ there.
 
 ## Choosing a Mode
 
+Use **Read only** when the result should be an assessment rather than a change.
+
 Use **Full access** for work in a worktree or a sandbox you can throw away.
 
 Use **Supervised** on a repository where an unwanted command is expensive, or the first time you
@@ -44,4 +51,4 @@ with prompting enabled and a restricted workspace while **Full access** disables
 labels above describe what you get; the exact per-provider translation is internal and may
 change.
 
-Mobile offers the same four modes with the same labels and descriptions.
+Mobile offers the same five modes with the same labels and descriptions.

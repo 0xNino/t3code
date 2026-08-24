@@ -1,7 +1,15 @@
+// @effect-diagnostics nodeBuiltinImport:off
+import * as NodeFSP from "node:fs/promises";
+import * as NodeOS from "node:os";
+import * as NodePath from "node:path";
+
+import * as NodeServices from "@effect/platform-node/NodeServices";
 import { expect, it } from "@effect/vitest";
 import { ThreadId } from "@t3tools/contracts";
+import * as Effect from "effect/Effect";
 
 import { __testing } from "./handlers.ts";
+import { AGENT_REVIEW_WORKSPACE_MARKER, AGENT_REVIEW_WORKSPACE_MARKER_CONTENT } from "./tools.ts";
 
 const record = (threadId: string, parentThreadId: string, depth: number) => ({
   threadId: ThreadId.make(threadId),
@@ -49,3 +57,35 @@ it("terminates safely when malformed ownership metadata contains a cycle", () =>
     false,
   );
 });
+
+it.effect("accepts only marked review snapshots under the operating-system temp directory", () =>
+  Effect.gen(function* () {
+    const workspace = yield* Effect.acquireRelease(
+      Effect.promise(() => NodeFSP.mkdtemp(NodePath.join(NodeOS.tmpdir(), "t3-review-test-"))),
+      (directory) => Effect.promise(() => NodeFSP.rm(directory, { recursive: true, force: true })),
+    );
+    yield* Effect.promise(() =>
+      NodeFSP.writeFile(
+        NodePath.join(workspace, AGENT_REVIEW_WORKSPACE_MARKER),
+        `${AGENT_REVIEW_WORKSPACE_MARKER_CONTENT}\n`,
+        "utf8",
+      ),
+    );
+
+    expect(yield* __testing.validateReviewWorkspace(workspace)).toBe(
+      yield* Effect.promise(() => NodeFSP.realpath(workspace)),
+    );
+  }).pipe(Effect.provide(NodeServices.layer)),
+);
+
+it.effect("rejects an unmarked temp directory as a review snapshot", () =>
+  Effect.gen(function* () {
+    const workspace = yield* Effect.acquireRelease(
+      Effect.promise(() => NodeFSP.mkdtemp(NodePath.join(NodeOS.tmpdir(), "t3-review-test-"))),
+      (directory) => Effect.promise(() => NodeFSP.rm(directory, { recursive: true, force: true })),
+    );
+    const error = yield* __testing.validateReviewWorkspace(workspace).pipe(Effect.flip);
+    expect(error.reason).toBe("invalid-input");
+    expect(error.detail).toContain(AGENT_REVIEW_WORKSPACE_MARKER);
+  }).pipe(Effect.provide(NodeServices.layer)),
+);

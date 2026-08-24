@@ -228,7 +228,7 @@ function resolveRequestedModeId(input: {
     return findModeByAliases(modeState.availableModes, ACP_PLAN_MODE_ALIASES)?.id;
   }
 
-  if (input.runtimeMode === "approval-required") {
+  if (input.runtimeMode === "read-only" || input.runtimeMode === "approval-required") {
     return (
       findModeByAliases(modeState.availableModes, ACP_APPROVAL_MODE_ALIASES)?.id ??
       findModeByAliases(modeState.availableModes, ACP_IMPLEMENT_MODE_ALIASES)?.id ??
@@ -308,6 +308,20 @@ function selectAutoApprovedPermissionOption(
   }
 
   return undefined;
+}
+
+export function selectAutoRejectedPermissionOption(
+  request: EffectAcpSchema.RequestPermissionRequest,
+): string | undefined {
+  const rejectAlwaysOption = request.options.find((option) => option.kind === "reject_always");
+  if (typeof rejectAlwaysOption?.optionId === "string" && rejectAlwaysOption.optionId.trim()) {
+    return rejectAlwaysOption.optionId.trim();
+  }
+
+  const rejectOnceOption = request.options.find((option) => option.kind === "reject_once");
+  return typeof rejectOnceOption?.optionId === "string" && rejectOnceOption.optionId.trim()
+    ? rejectOnceOption.optionId.trim()
+    : undefined;
 }
 
 export function makeCursorAdapter(
@@ -531,7 +545,10 @@ export function makeCursorAdapter(
             ? yield* options.resolveSettings
             : cursorSettings;
 
-          const mcpSession = McpProviderSession.readMcpProviderSession(input.threadId);
+          const mcpSession =
+            input.runtimeMode === "read-only"
+              ? undefined
+              : McpProviderSession.readMcpProviderSession(input.threadId);
           const acp = yield* makeCursorAcpRuntime({
             cursorSettings: effectiveCursorSettings,
             ...(options?.environment ? { environment: options.environment } : {}),
@@ -682,6 +699,17 @@ export function makeCursorAdapter(
                         },
                       };
                     }
+                  }
+                  if (input.runtimeMode === "read-only") {
+                    const rejectedOptionId = selectAutoRejectedPermissionOption(params);
+                    return rejectedOptionId === undefined
+                      ? { outcome: { outcome: "cancelled" as const } }
+                      : {
+                          outcome: {
+                            outcome: "selected" as const,
+                            optionId: rejectedOptionId,
+                          },
+                        };
                   }
                   const permissionRequest = parsePermissionRequest(params);
                   const requestId = ApprovalRequestId.make(yield* randomUUIDv4);

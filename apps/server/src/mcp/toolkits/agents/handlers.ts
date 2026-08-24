@@ -1,3 +1,5 @@
+import * as NodeOS from "node:os";
+
 import {
   CommandId,
   MessageId,
@@ -10,8 +12,10 @@ import {
 import * as Crypto from "effect/Crypto";
 import * as DateTime from "effect/DateTime";
 import * as Effect from "effect/Effect";
+import * as FileSystem from "effect/FileSystem";
 import * as Option from "effect/Option";
 import * as PubSub from "effect/PubSub";
+import * as Path from "effect/Path";
 import * as Schema from "effect/Schema";
 
 import * as McpInvocationContext from "../../McpInvocationContext.ts";
@@ -23,6 +27,8 @@ import { ProjectionSnapshotQuery } from "../../../orchestration/Services/Project
 import { ProviderRegistry } from "../../../provider/Services/ProviderRegistry.ts";
 import {
   AgentControlError,
+  AGENT_REVIEW_WORKSPACE_MARKER,
+  AGENT_REVIEW_WORKSPACE_MARKER_CONTENT,
   AgentToolkit,
   type AgentControlFailureReason,
   type AgentSessionSummary,
@@ -136,6 +142,8 @@ function toSessionSummary(
     title: thread.title,
     ...(record.spawn.role === undefined ? {} : { role: record.spawn.role }),
     modelSelection: thread.modelSelection,
+    runtimeMode: thread.runtimeMode,
+    ...(thread.worktreePath === null ? {} : { workspacePath: thread.worktreePath }),
     state: sessionState(thread),
     ...(thread.session === null ? {} : { sessionStatus: thread.session.status }),
     ...(thread.latestTurn === null ? {} : { turnState: thread.latestTurn.state }),
@@ -173,6 +181,77 @@ const digestHex = Effect.fn("AgentToolkit.digestHex")(function* (value: string) 
   const crypto = yield* Crypto.Crypto;
   const bytes = yield* crypto.digest("SHA-256", new TextEncoder().encode(value)).pipe(Effect.orDie);
   return Array.from(bytes, (byte) => byte.toString(16).padStart(2, "0")).join("");
+});
+
+function pathIsInside(path: Path.Path, parent: string, candidate: string): boolean {
+  const relative = path.relative(parent, candidate);
+  return relative !== "" && !relative.startsWith(`..${path.sep}`) && !path.isAbsolute(relative);
+}
+
+const validateReviewWorkspace = Effect.fn("AgentToolkit.validateReviewWorkspace")(function* (
+  workspacePath: string,
+) {
+  const operation = "start";
+  const fileSystem = yield* FileSystem.FileSystem;
+  const path = yield* Path.Path;
+  if (!path.isAbsolute(workspacePath)) {
+    return yield* fail(operation, "invalid-input", "workspacePath must be absolute.");
+  }
+  const canonicalTempRoot = yield* fileSystem
+    .realPath(NodeOS.tmpdir())
+    .pipe(
+      Effect.mapError(() =>
+        fail(
+          operation,
+          "internal-error",
+          "The operating-system temporary directory is unavailable.",
+        ),
+      ),
+    );
+  const canonicalWorkspace = yield* fileSystem
+    .realPath(workspacePath)
+    .pipe(
+      Effect.mapError(() =>
+        fail(operation, "invalid-input", `Review workspace '${workspacePath}' does not exist.`),
+      ),
+    );
+  if (!pathIsInside(path, canonicalTempRoot, canonicalWorkspace)) {
+    return yield* fail(
+      operation,
+      "invalid-input",
+      "A read-only review workspace must be a child of the operating-system temporary directory.",
+    );
+  }
+  const stats = yield* fileSystem
+    .stat(canonicalWorkspace)
+    .pipe(
+      Effect.mapError(() =>
+        fail(
+          operation,
+          "invalid-input",
+          `Review workspace '${workspacePath}' cannot be inspected.`,
+        ),
+      ),
+    );
+  if (stats.type !== "Directory") {
+    return yield* fail(operation, "invalid-input", "workspacePath must identify a directory.");
+  }
+  const markerPath = path.join(canonicalWorkspace, AGENT_REVIEW_WORKSPACE_MARKER);
+  const marker = yield* fileSystem
+    .readFileString(markerPath)
+    .pipe(
+      Effect.mapError(() =>
+        fail(
+          operation,
+          "invalid-input",
+          `Review workspace is missing the ${AGENT_REVIEW_WORKSPACE_MARKER} attestation marker.`,
+        ),
+      ),
+    );
+  if (marker.trim() !== AGENT_REVIEW_WORKSPACE_MARKER_CONTENT) {
+    return yield* fail(operation, "invalid-input", "Review workspace attestation is invalid.");
+  }
+  return canonicalWorkspace;
 });
 
 function findProvider(
@@ -225,6 +304,26 @@ const spawnOne = Effect.fn("AgentToolkit.spawnOne")(function* (input: {
   const reused = existingRecord !== undefined;
   const createdAt = DateTime.formatIso(yield* DateTime.now);
   const role = input.spec.role;
+  const access = input.spec.access ?? "supervised";
+  if (input.spec.workspacePath !== undefined && access !== "read-only") {
+    return yield* fail(
+      operation,
+      "invalid-input",
+      "workspacePath is only allowed for a read-only child agent.",
+    );
+  }
+  if (access === "read-only" && input.spec.allowDelegation === true) {
+    return yield* fail(
+      operation,
+      "invalid-input",
+      "A read-only child agent cannot be granted delegation authority.",
+    );
+  }
+  const reviewWorkspace =
+    input.spec.workspacePath === undefined
+      ? undefined
+      : yield* validateReviewWorkspace(input.spec.workspacePath);
+  const runtimeMode = access === "read-only" ? "read-only" : "approval-required";
   const title =
     input.spec.title ??
     `${role ?? providerMatch.provider.displayName ?? providerMatch.provider.driver} · ${providerMatch.modelName}`;
@@ -245,10 +344,10 @@ const spawnOne = Effect.fn("AgentToolkit.spawnOne")(function* (input: {
       projectId: input.parent.projectId,
       title,
       modelSelection: input.spec.modelSelection,
-      runtimeMode: "approval-required",
+      runtimeMode,
       interactionMode: "default",
-      branch: input.parent.branch,
-      worktreePath: input.parent.worktreePath,
+      branch: reviewWorkspace === undefined ? input.parent.branch : null,
+      worktreePath: reviewWorkspace ?? input.parent.worktreePath,
       spawn,
       createdAt,
     });
@@ -265,7 +364,7 @@ const spawnOne = Effect.fn("AgentToolkit.spawnOne")(function* (input: {
     },
     modelSelection: input.spec.modelSelection,
     titleSeed: title,
-    runtimeMode: "approval-required",
+    runtimeMode,
     interactionMode: "default",
     createdAt,
   });
@@ -673,5 +772,7 @@ export const AgentToolkitHandlersLive = AgentToolkit.toLayer(handlers);
 export const __testing = {
   isDescendantOf,
   ownedRecords,
+  pathIsInside,
   sessionState,
+  validateReviewWorkspace,
 };

@@ -374,6 +374,30 @@ describe("ClaudeAdapterLive", () => {
     );
   });
 
+  it.effect("removes mutable tools, settings, and integrations in read-only mode", () => {
+    const harness = makeHarness();
+    return Effect.gen(function* () {
+      const adapter = yield* ClaudeAdapter;
+      yield* adapter.startSession({
+        threadId: THREAD_ID,
+        provider: ProviderDriverKind.make("claudeAgent"),
+        cwd: process.cwd(),
+        runtimeMode: "read-only",
+      });
+
+      const createInput = harness.getLastCreateQueryInput();
+      assert.equal(createInput?.options.permissionMode, "dontAsk");
+      assert.deepEqual(createInput?.options.tools, ["Read", "Grep", "Glob"]);
+      assert.deepEqual(createInput?.options.settingSources, []);
+      assert.deepEqual(createInput?.options.additionalDirectories, [process.cwd()]);
+      assert.equal(createInput?.options.mcpServers, undefined);
+      assert.equal(createInput?.options.extraArgs, undefined);
+    }).pipe(
+      Effect.provideService(Random.Random, makeDeterministicRandomService()),
+      Effect.provide(harness.layer),
+    );
+  });
+
   it.effect("loads Claude filesystem settings sources for SDK sessions", () => {
     const harness = makeHarness();
     return Effect.gen(function* () {

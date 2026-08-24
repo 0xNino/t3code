@@ -373,6 +373,17 @@ export function buildOpenCodePermissionRules(runtimeMode: RuntimeMode): Permissi
     return [{ permission: "*", pattern: "*", action: "allow" }];
   }
 
+  if (runtimeMode === "read-only") {
+    return [
+      { permission: "*", pattern: "*", action: "deny" },
+      { permission: "read", pattern: "*", action: "allow" },
+      { permission: "glob", pattern: "*", action: "allow" },
+      { permission: "grep", pattern: "*", action: "allow" },
+      { permission: "list", pattern: "*", action: "allow" },
+      { permission: "lsp", pattern: "*", action: "allow" },
+    ];
+  }
+
   // "Auto-accept edits" is documented as "auto-approve edits, ask before other
   // actions", so prompting for every edit ignores the mode the user picked.
   // "auto" is left asking on purpose: the docs say providers without an AI

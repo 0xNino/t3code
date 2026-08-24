@@ -28,8 +28,22 @@ import {
 import { ServerConfig } from "../../config.ts";
 import { ServerSettingsService } from "../../serverSettings.ts";
 import type { CursorAdapterShape } from "../Services/CursorAdapter.ts";
-import { makeCursorAdapter } from "./CursorAdapter.ts";
+import { makeCursorAdapter, selectAutoRejectedPermissionOption } from "./CursorAdapter.ts";
 const decodeCursorSettings = Schema.decodeSync(CursorSettings);
+
+it("prefers a durable ACP rejection option for read-only sessions", () => {
+  assert.equal(
+    selectAutoRejectedPermissionOption({
+      sessionId: "session-1",
+      toolCall: { toolCallId: "tool-1" },
+      options: [
+        { kind: "reject_once", name: "Reject once", optionId: "reject-once" },
+        { kind: "reject_always", name: "Always reject", optionId: "reject-always" },
+      ],
+    }),
+    "reject-always",
+  );
+});
 
 // Test-local service tag so the rest of the file can keep using `yield* CursorAdapter`.
 class CursorAdapter extends Context.Service<CursorAdapter, CursorAdapterShape>()(

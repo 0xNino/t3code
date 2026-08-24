@@ -276,6 +276,11 @@ const runtimeModeConfig: Record<
   RuntimeMode,
   { label: string; description: string; icon: LucideIcon }
 > = {
+  "read-only": {
+    label: "Read only",
+    description: "Allow inspection without commands, edits, network tools, or T3 integrations.",
+    icon: LockIcon,
+  },
   "approval-required": {
     label: "Supervised",
     description: "Ask before commands and file changes.",

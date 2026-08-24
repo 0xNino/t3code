@@ -1,11 +1,14 @@
 import {
   ModelSelection,
   ProviderInstanceId,
+  RuntimeMode,
   ServerProviderModel,
   ThreadId,
   TrimmedNonEmptyString,
 } from "@t3tools/contracts";
 import * as Crypto from "effect/Crypto";
+import * as FileSystem from "effect/FileSystem";
+import * as Path from "effect/Path";
 import * as Schema from "effect/Schema";
 import { Tool, Toolkit } from "effect/unstable/ai";
 
@@ -17,6 +20,8 @@ import { ProviderRegistry } from "../../../provider/Services/ProviderRegistry.ts
 export const AGENT_RUN_MAX_BATCH = 8;
 export const AGENT_PROMPT_MAX_CHARS = 120_000;
 export const AGENT_WAIT_MAX_MS = 60_000;
+export const AGENT_REVIEW_WORKSPACE_MARKER = ".t3code-review-snapshot";
+export const AGENT_REVIEW_WORKSPACE_MARKER_CONTENT = "t3code-review-snapshot-v1";
 
 const described = <S extends Schema.Top>(schema: S, description: string): S =>
   schema.annotate({ description }) as S;
@@ -46,6 +51,18 @@ export const AgentSpec = Schema.Struct({
     described(
       Schema.Boolean,
       "Whether this child may itself start child agents. Defaults to false.",
+    ),
+  ),
+  access: Schema.optional(
+    described(
+      Schema.Literals(["supervised", "read-only"]),
+      "Child access policy. Defaults to supervised. Read-only denies commands, edits, network tools, and T3 integrations.",
+    ),
+  ),
+  workspacePath: Schema.optional(
+    described(
+      TrimmedNonEmptyString.check(Schema.isMaxLength(4_096)),
+      `Absolute path to a marked, sanitized review snapshot under the operating-system temporary directory. Only valid with access read-only; the directory must contain ${AGENT_REVIEW_WORKSPACE_MARKER}.`,
     ),
   ),
   idempotencyKey: Schema.optional(
@@ -107,6 +124,8 @@ export const AgentSessionSummary = Schema.Struct({
   title: TrimmedNonEmptyString,
   role: Schema.optional(TrimmedNonEmptyString),
   modelSelection: ModelSelection,
+  runtimeMode: RuntimeMode,
+  workspacePath: Schema.optional(TrimmedNonEmptyString),
   state: AgentSessionState,
   sessionStatus: Schema.optional(TrimmedNonEmptyString),
   turnState: Schema.optional(TrimmedNonEmptyString),
@@ -206,6 +225,8 @@ const dependencies = [
   ProjectionSnapshotQuery,
   ProviderRegistry,
   Crypto.Crypto,
+  FileSystem.FileSystem,
+  Path.Path,
 ];
 
 export const AgentRunTool = Tool.make("agent_run", {

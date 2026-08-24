@@ -13,6 +13,15 @@ function actionFor(
 }
 
 describe("buildOpenCodePermissionRules", () => {
+  it("allows only inspection tools in read-only mode", () => {
+    for (const permission of ["read", "glob", "grep", "list", "lsp"] as const) {
+      NodeAssert.equal(actionFor("read-only", permission), "allow");
+    }
+    NodeAssert.equal(actionFor("read-only", "*"), "deny");
+    NodeAssert.equal(actionFor("read-only", "bash"), undefined);
+    NodeAssert.equal(actionFor("read-only", "edit"), undefined);
+  });
+
   it("pre-approves edits once the user has chosen to auto-accept them", () => {
     NodeAssert.equal(actionFor("auto-accept-edits", "edit"), "allow");
   });

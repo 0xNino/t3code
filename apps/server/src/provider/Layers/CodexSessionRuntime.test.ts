@@ -67,6 +67,23 @@ function makeThreadOpenResponse(
 }
 
 describe("buildTurnStartParams", () => {
+  it.effect("makes read-only turns non-interactive and networkless", () =>
+    Effect.gen(function* () {
+      const params = yield* buildTurnStartParams({
+        threadId: "provider-thread-review",
+        runtimeMode: "read-only",
+        prompt: "Review only",
+      });
+
+      NodeAssert.equal(params.approvalPolicy, "never");
+      NodeAssert.equal(params.approvalsReviewer, "user");
+      NodeAssert.deepStrictEqual(params.sandboxPolicy, {
+        type: "readOnly",
+        networkAccess: false,
+      });
+    }),
+  );
+
   it("keeps invalid turn values only in the schema cause", () => {
     const secret = "codex-turn-input-secret-sentinel";
     const error = Effect.runSync(

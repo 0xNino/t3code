@@ -492,6 +492,12 @@ function runtimeModeToThreadConfig(input: RuntimeMode): {
   readonly approvalsReviewer: EffectCodexSchema.V2ThreadStartParams__ApprovalsReviewer;
 } {
   switch (input) {
+    case "read-only":
+      return {
+        approvalPolicy: "never",
+        sandbox: "read-only",
+        approvalsReviewer: "user",
+      };
     case "approval-required":
       return {
         approvalPolicy: "untrusted",
@@ -541,9 +547,11 @@ function runtimeModeToTurnSandboxPolicy(
   input: RuntimeMode,
 ): EffectCodexSchema.V2TurnStartParams__SandboxPolicy {
   switch (input) {
+    case "read-only":
     case "approval-required":
       return {
         type: "readOnly",
+        ...(input === "read-only" ? { networkAccess: false } : {}),
       };
     case "auto-accept-edits":
     case "auto":
