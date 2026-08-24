@@ -984,6 +984,31 @@ const ThreadSessionSetCommand = Schema.Struct({
   createdAt: IsoDateTime,
 });
 
+export const AgentSpawnMetadata = Schema.Struct({
+  parentThreadId: ThreadId,
+  spawnId: TrimmedNonEmptyString.check(Schema.isMaxLength(128)),
+  depth: PositiveInt,
+  allowDelegation: Schema.Boolean,
+  creatorProviderSessionId: TrimmedNonEmptyString.check(Schema.isMaxLength(128)),
+  role: Schema.optional(TrimmedNonEmptyString.check(Schema.isMaxLength(128))),
+});
+export type AgentSpawnMetadata = typeof AgentSpawnMetadata.Type;
+
+const ThreadSpawnCommand = Schema.Struct({
+  type: Schema.Literal("thread.spawn"),
+  commandId: CommandId,
+  threadId: ThreadId,
+  projectId: ProjectId,
+  title: TrimmedNonEmptyString,
+  modelSelection: ModelSelection,
+  runtimeMode: RuntimeMode,
+  interactionMode: ProviderInteractionMode,
+  branch: Schema.NullOr(TrimmedNonEmptyString),
+  worktreePath: Schema.NullOr(TrimmedNonEmptyString),
+  spawn: AgentSpawnMetadata,
+  createdAt: IsoDateTime,
+});
+
 const ThreadMessageAssistantDeltaCommand = Schema.Struct({
   type: Schema.Literal("thread.message.assistant.delta"),
   commandId: CommandId,
@@ -1050,6 +1075,7 @@ const ThreadTitleRegenerationCompleteCommand = Schema.Struct({
 });
 
 const InternalOrchestrationCommand = Schema.Union([
+  ThreadSpawnCommand,
   ThreadSessionSetCommand,
   ThreadMessageAssistantDeltaCommand,
   ThreadMessageAssistantCompleteCommand,
@@ -1350,6 +1376,7 @@ export const OrchestrationEventMetadata = Schema.Struct({
   requestId: Schema.optional(ApprovalRequestId),
   ingestedAt: Schema.optional(IsoDateTime),
   origin: Schema.optional(OrchestrationClientOrigin),
+  agentSpawn: Schema.optional(AgentSpawnMetadata),
 });
 export type OrchestrationEventMetadata = typeof OrchestrationEventMetadata.Type;
 

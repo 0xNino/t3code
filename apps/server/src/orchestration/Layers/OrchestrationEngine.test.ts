@@ -302,6 +302,85 @@ describe("OrchestrationEngine", () => {
     await system.dispose();
   });
 
+  it("hydrates durable agent ownership on demand and tracks later spawns", async () => {
+    const system = await createOrchestrationSystem();
+    const { engine } = system;
+    const createdAt = now();
+    const projectId = asProjectId("project-agent-ownership");
+    const parentThreadId = ThreadId.make("thread-agent-parent");
+
+    await system.run(
+      engine.dispatch({
+        type: "project.create",
+        commandId: CommandId.make("cmd-project-agent-ownership"),
+        projectId,
+        title: "Agent ownership",
+        workspaceRoot: "/tmp/project-agent-ownership",
+        defaultModelSelection: null,
+        createdAt,
+      }),
+    );
+    await system.run(
+      engine.dispatch({
+        type: "thread.create",
+        commandId: CommandId.make("cmd-thread-agent-parent"),
+        threadId: parentThreadId,
+        projectId,
+        title: "Parent",
+        modelSelection: {
+          instanceId: ProviderInstanceId.make("codex"),
+          model: "gpt-5-codex",
+        },
+        runtimeMode: "approval-required",
+        interactionMode: "default",
+        branch: "main",
+        worktreePath: null,
+        createdAt,
+      }),
+    );
+
+    const spawn = async (suffix: string) => {
+      const threadId = ThreadId.make(`agent-${suffix}`);
+      await system.run(
+        engine.dispatch({
+          type: "thread.spawn",
+          commandId: CommandId.make(`server:agent-spawn:${suffix}`),
+          threadId,
+          projectId,
+          title: `Reviewer ${suffix}`,
+          modelSelection: {
+            instanceId: ProviderInstanceId.make("claudeAgent"),
+            model: "claude-opus-5",
+          },
+          runtimeMode: "approval-required",
+          interactionMode: "default",
+          branch: "main",
+          worktreePath: null,
+          spawn: {
+            parentThreadId,
+            spawnId: suffix,
+            depth: 1,
+            allowDelegation: false,
+            creatorProviderSessionId: "provider-session-1",
+          },
+          createdAt,
+        }),
+      );
+      return threadId;
+    };
+
+    const firstId = await spawn("first");
+    if (engine.agentSpawnRecords === undefined) throw new Error("agent spawn index unavailable");
+    const firstRecords = await system.run(engine.agentSpawnRecords);
+    expect(firstRecords.get(firstId)?.spawn.parentThreadId).toBe(parentThreadId);
+
+    const secondId = await spawn("second");
+    const secondRecords = await system.run(engine.agentSpawnRecords);
+    expect(Array.from(secondRecords.keys())).toEqual([firstId, secondId]);
+
+    await system.dispose();
+  });
+
   it("archives and unarchives threads through orchestration commands", async () => {
     const system = await createOrchestrationSystem();
     const { engine } = system;

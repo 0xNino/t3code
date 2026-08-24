@@ -54,6 +54,21 @@ it.effect("stores only a token hash, resolves the bearer token, and revokes by t
   }),
 );
 
+it.effect("preserves the capabilities explicitly granted to a provider session", () =>
+  Effect.gen(function* () {
+    const registry = yield* makeRegistry(() => 1_000);
+    const issued = yield* registry.issue({
+      threadId: ThreadId.make("thread-agents"),
+      providerInstanceId: ProviderInstanceId.make("claudeAgent"),
+      capabilities: new Set(["agents"]),
+    });
+    const token = issued.config.authorizationHeader.replace(/^Bearer\s+/, "");
+
+    const resolved = yield* registry.resolve(token);
+    expect(resolved?.capabilities).toEqual(new Set(["agents"]));
+  }),
+);
+
 it.effect("builds MCP endpoints from the bound server host", () =>
   Effect.gen(function* () {
     const cases = [

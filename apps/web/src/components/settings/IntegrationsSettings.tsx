@@ -393,6 +393,44 @@ function AgentBrowserAccessSetting() {
   );
 }
 
+function AgentOrchestrationSetting() {
+  const settings = usePrimarySettings();
+  const updateSettings = useUpdatePrimarySettings();
+
+  return (
+    <SettingsRow
+      {...searchableSetting("agent-orchestration")}
+      description="Let an agent start and control visible child threads on your configured providers. This can run several paid models concurrently, so it is off by default. Spawned children cannot delegate unless the parent explicitly allows it."
+      status={
+        settings.enableAgentOrchestration
+          ? "Applies to sessions started from now on; restart an existing agent session to grant access."
+          : undefined
+      }
+      resetAction={
+        settings.enableAgentOrchestration !== DEFAULT_UNIFIED_SETTINGS.enableAgentOrchestration ? (
+          <SettingResetButton
+            label="agent orchestration"
+            onClick={() =>
+              updateSettings({
+                enableAgentOrchestration: DEFAULT_UNIFIED_SETTINGS.enableAgentOrchestration,
+              })
+            }
+          />
+        ) : null
+      }
+      control={
+        <Switch
+          checked={settings.enableAgentOrchestration}
+          onCheckedChange={(checked) =>
+            updateSettings({ enableAgentOrchestration: Boolean(checked) })
+          }
+          aria-label="Allow agent orchestration"
+        />
+      }
+    />
+  );
+}
+
 function BrowserAutoShowFloatingPreviewSetting({ disabled }: { readonly disabled: boolean }) {
   const autoShow = useClientSettings((settings) => settings.browserAutoShowFloatingPreview);
   const updateSettings = useUpdatePrimarySettings();
@@ -467,6 +505,9 @@ export function IntegrationsSettingsPanel() {
 
   return (
     <SettingsPageContainer>
+      <SettingsSection id="agents" title="Agents">
+        <AgentOrchestrationSetting />
+      </SettingsSection>
       <SettingsSection id="browser" title="Browser">
         {/* Server-authoritative, so it stays editable on every client and sits
             outside the block covering the desktop-only defaults. */}

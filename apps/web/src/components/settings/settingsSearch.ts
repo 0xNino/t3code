@@ -209,6 +209,12 @@ export const SETTINGS_SEARCH_ITEMS = [
     to: "/settings/providers",
   },
   {
+    id: "agent-orchestration",
+    title: "Agent orchestration",
+    to: "/settings/integrations",
+    targetId: "agents",
+  },
+  {
     id: "agent-browser-access",
     title: "Agent browser access",
     to: "/settings/integrations",

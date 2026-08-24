@@ -11,16 +11,26 @@
  * @module OrchestrationEngineService
  */
 import type {
+  AgentSpawnMetadata,
   OrchestrationClientOrigin,
   OrchestrationCommand,
   OrchestrationEvent,
+  ThreadId,
 } from "@t3tools/contracts";
 import * as Context from "effect/Context";
 import type * as Effect from "effect/Effect";
+import type * as PubSub from "effect/PubSub";
+import type * as Scope from "effect/Scope";
 import type * as Stream from "effect/Stream";
 
 import type { OrchestrationDispatchError } from "../Errors.ts";
 import type { OrchestrationEventStoreError } from "../../persistence/Errors.ts";
+
+export interface OrchestrationAgentSpawnRecord {
+  readonly threadId: ThreadId;
+  readonly createdAt: string;
+  readonly spawn: AgentSpawnMetadata;
+}
 
 /**
  * OrchestrationEngineShape - Service API for orchestration command and event flow.
@@ -63,6 +73,26 @@ export interface OrchestrationEngineShape {
    * This is a hot runtime stream (new events only), not a historical replay.
    */
   readonly streamDomainEvents: Stream.Stream<OrchestrationEvent>;
+
+  /**
+   * Subscribe synchronously before reading a snapshot when a caller must not
+   * miss an event between the initial read and the live wait.
+   */
+  readonly subscribeDomainEvents?: Effect.Effect<
+    PubSub.Subscription<OrchestrationEvent>,
+    never,
+    Scope.Scope
+  >;
+
+  /**
+   * Durable parent-child ownership hydrated lazily from the event stream and
+   * updated with every committed thread spawn. Optional for lightweight test
+   * engines.
+   */
+  readonly agentSpawnRecords?: Effect.Effect<
+    ReadonlyMap<ThreadId, OrchestrationAgentSpawnRecord>,
+    OrchestrationEventStoreError
+  >;
 
   /**
    * The latest sequence reflected in the engine's authoritative command read

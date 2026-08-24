@@ -414,6 +414,46 @@ it.effect("decodes thread archive and unarchive commands", () =>
   }),
 );
 
+it.effect("accepts internal agent spawns but rejects them at the client command boundary", () =>
+  Effect.gen(function* () {
+    const input = {
+      type: "thread.spawn",
+      commandId: "server:agent-spawn:review-1",
+      threadId: "agent-review-1",
+      projectId: "project-1",
+      title: "Architecture reviewer · Claude Opus",
+      modelSelection: {
+        instanceId: "claudeAgent",
+        model: "claude-opus-5",
+        options: [{ id: "reasoningEffort", value: "high" }],
+      },
+      runtimeMode: "approval-required",
+      interactionMode: "default",
+      branch: "feat/agent-orchestration",
+      worktreePath: "/tmp/t3code",
+      spawn: {
+        parentThreadId: "thread-1",
+        spawnId: "review-1",
+        depth: 1,
+        allowDelegation: false,
+        creatorProviderSessionId: "provider-session-1",
+        role: "architecture-reviewer",
+      },
+      createdAt: "2026-01-01T00:00:00.000Z",
+    } as const;
+
+    const parsed = yield* decodeOrchestrationCommand(input);
+    assert.strictEqual(parsed.type, "thread.spawn");
+    if (parsed.type === "thread.spawn") {
+      assert.strictEqual(parsed.spawn.parentThreadId, "thread-1");
+      assert.strictEqual(parsed.spawn.allowDelegation, false);
+    }
+
+    const clientResult = yield* Effect.exit(decodeClientOrchestrationCommand(input));
+    assert.strictEqual(clientResult._tag, "Failure");
+  }),
+);
+
 it.effect("decodes thread settle and unsettle commands", () =>
   Effect.gen(function* () {
     const settle = yield* decodeOrchestrationCommand({

@@ -349,7 +349,8 @@ export const decideOrchestrationCommand = Effect.fn("decideOrchestrationCommand"
       };
     }
 
-    case "thread.create": {
+    case "thread.create":
+    case "thread.spawn": {
       yield* requireProject({
         readModel,
         command,
@@ -366,6 +367,7 @@ export const decideOrchestrationCommand = Effect.fn("decideOrchestrationCommand"
           aggregateId: command.threadId,
           occurredAt: command.createdAt,
           commandId: command.commandId,
+          ...(command.type === "thread.spawn" ? { metadata: { agentSpawn: command.spawn } } : {}),
         })),
         type: "thread.created",
         payload: {

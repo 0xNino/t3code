@@ -195,6 +195,22 @@ describe("ServerSettings.providerInstances (slice-2 invariant)", () => {
   });
 });
 
+describe("ServerSettings agent orchestration", () => {
+  it("defaults agent orchestration off for existing settings files", () => {
+    expect(decodeServerSettings({}).enableAgentOrchestration).toBe(false);
+    expect(DEFAULT_SERVER_SETTINGS.enableAgentOrchestration).toBe(false);
+  });
+
+  it("accepts an explicit orchestration toggle in settings and patches", () => {
+    expect(decodeServerSettings({ enableAgentOrchestration: true }).enableAgentOrchestration).toBe(
+      true,
+    );
+    expect(
+      decodeServerSettingsPatch({ enableAgentOrchestration: true }).enableAgentOrchestration,
+    ).toBe(true);
+  });
+});
+
 describe("provider enabled defaults", () => {
   it("enables only the stable bindings by default", () => {
     const decoded = decodeServerSettings({});

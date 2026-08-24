@@ -21,6 +21,7 @@ import * as PubSub from "effect/PubSub";
 import * as Queue from "effect/Queue";
 import * as Schema from "effect/Schema";
 import * as Stream from "effect/Stream";
+import * as SynchronizedRef from "effect/SynchronizedRef";
 import * as SqlClient from "effect/unstable/sql/SqlClient";
 
 import {
@@ -45,6 +46,7 @@ import { OrchestrationProjectionPipeline } from "../Services/ProjectionPipeline.
 import { ProjectionSnapshotQuery } from "../Services/ProjectionSnapshotQuery.ts";
 import {
   OrchestrationEngineService,
+  type OrchestrationAgentSpawnRecord,
   type OrchestrationEngineShape,
 } from "../Services/OrchestrationEngine.ts";
 const isOrchestrationCommandPreviouslyRejectedError = Schema.is(
@@ -58,6 +60,27 @@ interface CommandEnvelope {
   origin: OrchestrationClientOrigin | undefined;
   result: Deferred.Deferred<{ sequence: number }, OrchestrationDispatchError>;
   startedAtMs: number;
+}
+
+interface AgentSpawnIndexState {
+  readonly hydrated: boolean;
+  readonly indexedThrough: number;
+  readonly records: ReadonlyMap<ThreadId, OrchestrationAgentSpawnRecord>;
+}
+
+export function indexAgentSpawnEvents(
+  records: Map<ThreadId, OrchestrationAgentSpawnRecord>,
+  events: Iterable<OrchestrationEvent>,
+): void {
+  for (const event of events) {
+    if (event.type === "thread.created" && event.metadata.agentSpawn !== undefined) {
+      records.set(event.payload.threadId, {
+        threadId: event.payload.threadId,
+        createdAt: event.payload.createdAt,
+        spawn: event.metadata.agentSpawn,
+      });
+    }
+  }
 }
 
 function commandToAggregateRef(command: OrchestrationCommand): {
@@ -90,6 +113,11 @@ const makeOrchestrationEngine = Effect.gen(function* () {
 
   const nowIso = Effect.map(DateTime.now, DateTime.formatIso);
   let commandReadModel = createEmptyReadModel(yield* nowIso);
+  const agentSpawnIndex = yield* SynchronizedRef.make<AgentSpawnIndexState>({
+    hydrated: false,
+    indexedThrough: 0,
+    records: new Map(),
+  });
 
   const commandQueue = yield* Queue.unbounded<CommandEnvelope>();
   const eventPubSub = yield* PubSub.unbounded<OrchestrationEvent>();
@@ -105,6 +133,43 @@ const makeOrchestrationEngine = Effect.gen(function* () {
       }
       return nextReadModel;
     });
+
+  const indexCommittedAgentSpawns = (events: ReadonlyArray<OrchestrationEvent>) =>
+    SynchronizedRef.update(agentSpawnIndex, (current) => {
+      const records = new Map(current.records);
+      indexAgentSpawnEvents(records, events);
+      return {
+        ...current,
+        records,
+        indexedThrough: current.hydrated
+          ? Math.max(current.indexedThrough, ...events.map((event) => event.sequence))
+          : current.indexedThrough,
+      };
+    });
+
+  const readAgentSpawnRecords = SynchronizedRef.modifyEffect(agentSpawnIndex, (current) =>
+    Stream.runCollect(
+      eventStore.readFromSequence(
+        current.hydrated ? current.indexedThrough : 0,
+        Number.MAX_SAFE_INTEGER,
+      ),
+    ).pipe(
+      Effect.map((events) => {
+        const records = new Map(current.records);
+        indexAgentSpawnEvents(records, events);
+        const indexedThrough = events.reduce(
+          (highest, event) => Math.max(highest, event.sequence),
+          current.indexedThrough,
+        );
+        const next: AgentSpawnIndexState = {
+          hydrated: true,
+          indexedThrough,
+          records,
+        };
+        return [new Map(records), next] as const;
+      }),
+    ),
+  );
 
   const processEnvelope = (envelope: CommandEnvelope): Effect.Effect<void> => {
     const dispatchStartSequence = commandReadModel.snapshotSequence;
@@ -123,6 +188,7 @@ const makeOrchestrationEngine = Effect.gen(function* () {
       }
 
       commandReadModel = yield* projectEventsOntoReadModel(commandReadModel, persistedEvents);
+      yield* indexCommittedAgentSpawns(persistedEvents);
 
       for (const persistedEvent of persistedEvents) {
         yield* PubSub.publish(eventPubSub, persistedEvent);
@@ -241,6 +307,7 @@ const makeOrchestrationEngine = Effect.gen(function* () {
           );
 
         commandReadModel = committedCommand.nextCommandReadModel;
+        yield* indexCommittedAgentSpawns(committedCommand.committedEvents);
         for (const [index, event] of committedCommand.committedEvents.entries()) {
           yield* PubSub.publish(eventPubSub, event);
           if (index === 0) {
@@ -361,6 +428,8 @@ const makeOrchestrationEngine = Effect.gen(function* () {
     get streamDomainEvents(): OrchestrationEngineShape["streamDomainEvents"] {
       return Stream.fromPubSub(eventPubSub);
     },
+    subscribeDomainEvents: PubSub.subscribe(eventPubSub),
+    agentSpawnRecords: readAgentSpawnRecords,
     // The command read model's snapshotSequence tracks the latest committed
     // event sequence (updated on the worker fiber). A plain property read is a
     // consistent, committed value — reassignment of `commandReadModel` is
