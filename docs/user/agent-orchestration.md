@@ -23,7 +23,8 @@ can request a configured reasoning effort when the provider supports it.
 
 For independent review, a child specification may select `access: read-only`
 and a `workspacePath`. A custom review workspace must be an absolute child of
-the operating-system temporary directory and contain a
+the configured T3 Code base directory's private `review-snapshots` directory
+and contain a
 `.t3code-review-snapshot` file whose contents are
 `t3code-review-snapshot-v1`. This explicit marker makes T3 reject accidental
 attempts to point a reviewer at the live repository.
@@ -38,7 +39,7 @@ delegation depth is two.
 
 Supervised children inherit the parent thread's project, branch, and worktree
 and start in **approval required** permission mode. Read-only children may
-instead use a marked temporary review snapshot. Their provider runtime denies
+instead use a marked private review snapshot. Their provider runtime denies
 commands, edits, network tools, T3 integrations, and delegation. The parent
 cannot use these tools to grant a child broader authority. Ownership is scoped
 to the parent thread, so one thread cannot inspect or control another thread's

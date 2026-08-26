@@ -58,8 +58,60 @@ it("terminates safely when malformed ownership metadata contains a cycle", () =>
   );
 });
 
-it.effect("accepts only marked review snapshots under the operating-system temp directory", () =>
+it.effect("accepts only marked review snapshots under T3's configured review directory", () =>
   Effect.gen(function* () {
+    const snapshotsDirectory = yield* Effect.acquireRelease(
+      Effect.promise(() =>
+        NodeFSP.mkdtemp(NodePath.join(NodeOS.tmpdir(), "t3-review-snapshots-test-")),
+      ),
+      (directory) => Effect.promise(() => NodeFSP.rm(directory, { recursive: true, force: true })),
+    );
+    const workspace = yield* Effect.acquireRelease(
+      Effect.promise(() => NodeFSP.mkdtemp(NodePath.join(snapshotsDirectory, "seer-review-test-"))),
+      (directory) => Effect.promise(() => NodeFSP.rm(directory, { recursive: true, force: true })),
+    );
+    yield* Effect.promise(() =>
+      NodeFSP.writeFile(
+        NodePath.join(workspace, AGENT_REVIEW_WORKSPACE_MARKER),
+        `${AGENT_REVIEW_WORKSPACE_MARKER_CONTENT}\n`,
+        "utf8",
+      ),
+    );
+
+    expect(yield* __testing.validateReviewWorkspace(workspace, snapshotsDirectory)).toBe(
+      yield* Effect.promise(() => NodeFSP.realpath(workspace)),
+    );
+  }).pipe(Effect.provide(NodeServices.layer)),
+);
+
+it.effect("rejects an unmarked directory under T3's review root", () =>
+  Effect.gen(function* () {
+    const snapshotsDirectory = yield* Effect.acquireRelease(
+      Effect.promise(() =>
+        NodeFSP.mkdtemp(NodePath.join(NodeOS.tmpdir(), "t3-review-snapshots-test-")),
+      ),
+      (directory) => Effect.promise(() => NodeFSP.rm(directory, { recursive: true, force: true })),
+    );
+    const workspace = yield* Effect.acquireRelease(
+      Effect.promise(() => NodeFSP.mkdtemp(NodePath.join(snapshotsDirectory, "seer-review-test-"))),
+      (directory) => Effect.promise(() => NodeFSP.rm(directory, { recursive: true, force: true })),
+    );
+    const error = yield* __testing
+      .validateReviewWorkspace(workspace, snapshotsDirectory)
+      .pipe(Effect.flip);
+    expect(error.reason).toBe("invalid-input");
+    expect(error.detail).toContain(AGENT_REVIEW_WORKSPACE_MARKER);
+  }).pipe(Effect.provide(NodeServices.layer)),
+);
+
+it.effect("rejects a marked snapshot elsewhere in the operating-system temp directory", () =>
+  Effect.gen(function* () {
+    const snapshotsDirectory = yield* Effect.acquireRelease(
+      Effect.promise(() =>
+        NodeFSP.mkdtemp(NodePath.join(NodeOS.tmpdir(), "t3-review-snapshots-test-")),
+      ),
+      (directory) => Effect.promise(() => NodeFSP.rm(directory, { recursive: true, force: true })),
+    );
     const workspace = yield* Effect.acquireRelease(
       Effect.promise(() => NodeFSP.mkdtemp(NodePath.join(NodeOS.tmpdir(), "t3-review-test-"))),
       (directory) => Effect.promise(() => NodeFSP.rm(directory, { recursive: true, force: true })),
@@ -72,20 +124,10 @@ it.effect("accepts only marked review snapshots under the operating-system temp 
       ),
     );
 
-    expect(yield* __testing.validateReviewWorkspace(workspace)).toBe(
-      yield* Effect.promise(() => NodeFSP.realpath(workspace)),
-    );
-  }).pipe(Effect.provide(NodeServices.layer)),
-);
-
-it.effect("rejects an unmarked temp directory as a review snapshot", () =>
-  Effect.gen(function* () {
-    const workspace = yield* Effect.acquireRelease(
-      Effect.promise(() => NodeFSP.mkdtemp(NodePath.join(NodeOS.tmpdir(), "t3-review-test-"))),
-      (directory) => Effect.promise(() => NodeFSP.rm(directory, { recursive: true, force: true })),
-    );
-    const error = yield* __testing.validateReviewWorkspace(workspace).pipe(Effect.flip);
+    const error = yield* __testing
+      .validateReviewWorkspace(workspace, snapshotsDirectory)
+      .pipe(Effect.flip);
     expect(error.reason).toBe("invalid-input");
-    expect(error.detail).toContain(AGENT_REVIEW_WORKSPACE_MARKER);
+    expect(error.detail).toContain("configured T3 Code review directory");
   }).pipe(Effect.provide(NodeServices.layer)),
 );

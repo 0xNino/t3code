@@ -13,6 +13,7 @@ import * as Schema from "effect/Schema";
 import { Tool, Toolkit } from "effect/unstable/ai";
 
 import * as McpInvocationContext from "../../McpInvocationContext.ts";
+import { ServerConfig } from "../../../config.ts";
 import { OrchestrationEngineService } from "../../../orchestration/Services/OrchestrationEngine.ts";
 import { ProjectionSnapshotQuery } from "../../../orchestration/Services/ProjectionSnapshotQuery.ts";
 import { ProviderRegistry } from "../../../provider/Services/ProviderRegistry.ts";
@@ -62,7 +63,7 @@ export const AgentSpec = Schema.Struct({
   workspacePath: Schema.optional(
     described(
       TrimmedNonEmptyString.check(Schema.isMaxLength(4_096)),
-      `Absolute path to a marked, sanitized review snapshot under the operating-system temporary directory. Only valid with access read-only; the directory must contain ${AGENT_REVIEW_WORKSPACE_MARKER}.`,
+      `Absolute path to a marked, sanitized snapshot under T3 Code's private review directory. Only valid with access read-only; the directory must contain ${AGENT_REVIEW_WORKSPACE_MARKER}.`,
     ),
   ),
   idempotencyKey: Schema.optional(
@@ -227,6 +228,7 @@ const dependencies = [
   Crypto.Crypto,
   FileSystem.FileSystem,
   Path.Path,
+  ServerConfig,
 ];
 
 export const AgentRunTool = Tool.make("agent_run", {

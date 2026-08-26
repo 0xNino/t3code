@@ -62,11 +62,11 @@ const decodeOrchestrationEvent = Schema.decodeUnknownEffect(OrchestrationEvent);
 const decodeThreadMetaUpdatedPayload = Schema.decodeUnknownEffect(ThreadMetaUpdatedPayload);
 const decodeDispatchCommandError = Schema.decodeUnknownEffect(OrchestrationDispatchCommandError);
 
-it.effect("encodes internal read-only runtime mode for pre-fork clients", () =>
+it.effect("preserves read-only in the canonical runtime mode", () =>
   Effect.gen(function* () {
     const encoded = yield* encodeRuntimeMode("read-only");
 
-    assert.strictEqual(encoded, "approval-required");
+    assert.strictEqual(encoded, "read-only");
   }),
 );
 

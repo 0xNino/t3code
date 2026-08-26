@@ -117,31 +117,31 @@ export const ModelSelection = ModelSelectionSource.pipe(
 );
 export type ModelSelection = typeof ModelSelection.Type;
 
-const RuntimeModeValue = Schema.Literals([
+export const RuntimeMode = Schema.Literals([
   "read-only",
   "approval-required",
   "auto-accept-edits",
   "auto",
   "full-access",
 ]);
+export type RuntimeMode = typeof RuntimeMode.Type;
+export const DEFAULT_RUNTIME_MODE: RuntimeMode = "full-access";
 
 /**
- * `read-only` is an internal child-agent capability added by the fork. Keep it
- * decodable for persisted events and usable by provider adapters, but encode it
- * as the upstream `approval-required` value so older desktop and mobile clients
- * can continue to decode orchestration snapshots and event streams.
+ * Client-facing orchestration payloads downgrade the fork's `read-only` value
+ * to `approval-required` so older desktop and mobile clients keep decoding
+ * snapshots and event streams. Keep this projection private and opt in only at
+ * wire schemas; server-owned boundaries use canonical `RuntimeMode` by default.
  */
-export const RuntimeMode = RuntimeModeValue.pipe(
+const LegacyClientRuntimeMode = RuntimeMode.pipe(
   Schema.decodeTo(
-    RuntimeModeValue,
+    RuntimeMode,
     SchemaTransformation.transform({
       decode: (value) => value,
       encode: (value) => (value === "read-only" ? "approval-required" : value),
     }),
   ),
 );
-export type RuntimeMode = typeof RuntimeMode.Type;
-export const DEFAULT_RUNTIME_MODE: RuntimeMode = "full-access";
 export const ProviderInteractionMode = Schema.Literals(["default", "plan"]);
 export type ProviderInteractionMode = typeof ProviderInteractionMode.Type;
 export const DEFAULT_PROVIDER_INTERACTION_MODE: ProviderInteractionMode = "default";
@@ -330,7 +330,9 @@ export const OrchestrationSession = Schema.Struct({
   status: OrchestrationSessionStatus,
   providerName: Schema.NullOr(TrimmedNonEmptyString),
   providerInstanceId: Schema.optional(ProviderInstanceId),
-  runtimeMode: RuntimeMode.pipe(Schema.withDecodingDefault(Effect.succeed(DEFAULT_RUNTIME_MODE))),
+  runtimeMode: LegacyClientRuntimeMode.pipe(
+    Schema.withDecodingDefault(Effect.succeed(DEFAULT_RUNTIME_MODE)),
+  ),
   activeTurnId: Schema.NullOr(TurnId),
   lastError: Schema.NullOr(TrimmedNonEmptyString),
   updatedAt: IsoDateTime,
@@ -409,7 +411,7 @@ export const OrchestrationThread = Schema.Struct({
   projectId: ProjectId,
   title: TrimmedNonEmptyString,
   modelSelection: ModelSelection,
-  runtimeMode: RuntimeMode,
+  runtimeMode: LegacyClientRuntimeMode,
   interactionMode: ProviderInteractionMode.pipe(
     Schema.withDecodingDefault(Effect.succeed(DEFAULT_PROVIDER_INTERACTION_MODE)),
   ),
@@ -479,7 +481,7 @@ export const OrchestrationThreadShell = Schema.Struct({
   projectId: ProjectId,
   title: TrimmedNonEmptyString,
   modelSelection: ModelSelection,
-  runtimeMode: RuntimeMode,
+  runtimeMode: LegacyClientRuntimeMode,
   interactionMode: ProviderInteractionMode.pipe(
     Schema.withDecodingDefault(Effect.succeed(DEFAULT_PROVIDER_INTERACTION_MODE)),
   ),
@@ -700,7 +702,7 @@ const ThreadCreateCommand = Schema.Struct({
   projectId: ProjectId,
   title: TrimmedNonEmptyString,
   modelSelection: ModelSelection,
-  runtimeMode: RuntimeMode,
+  runtimeMode: LegacyClientRuntimeMode,
   interactionMode: ProviderInteractionMode.pipe(
     Schema.withDecodingDefault(Effect.succeed(DEFAULT_PROVIDER_INTERACTION_MODE)),
   ),
@@ -813,7 +815,7 @@ const ThreadRuntimeModeSetCommand = Schema.Struct({
   type: Schema.Literal("thread.runtime-mode.set"),
   commandId: CommandId,
   threadId: ThreadId,
-  runtimeMode: RuntimeMode,
+  runtimeMode: LegacyClientRuntimeMode,
   createdAt: IsoDateTime,
 });
 
@@ -829,7 +831,7 @@ const ThreadTurnStartBootstrapCreateThread = Schema.Struct({
   projectId: ProjectId,
   title: TrimmedNonEmptyString,
   modelSelection: ModelSelection,
-  runtimeMode: RuntimeMode,
+  runtimeMode: LegacyClientRuntimeMode,
   interactionMode: ProviderInteractionMode,
   branch: Schema.NullOr(TrimmedNonEmptyString),
   worktreePath: Schema.NullOr(TrimmedNonEmptyString),
@@ -884,7 +886,7 @@ const ClientThreadTurnStartCommand = Schema.Struct({
   }),
   modelSelection: Schema.optional(ModelSelection),
   titleSeed: Schema.optional(TrimmedNonEmptyString),
-  runtimeMode: RuntimeMode,
+  runtimeMode: LegacyClientRuntimeMode,
   interactionMode: ProviderInteractionMode,
   bootstrap: Schema.optional(ThreadTurnStartBootstrap),
   sourceProposedPlan: Schema.optional(SourceProposedPlanReference),
@@ -1182,7 +1184,9 @@ export const ThreadCreatedPayload = Schema.Struct({
   projectId: ProjectId,
   title: TrimmedNonEmptyString,
   modelSelection: ModelSelection,
-  runtimeMode: RuntimeMode.pipe(Schema.withDecodingDefault(Effect.succeed(DEFAULT_RUNTIME_MODE))),
+  runtimeMode: LegacyClientRuntimeMode.pipe(
+    Schema.withDecodingDefault(Effect.succeed(DEFAULT_RUNTIME_MODE)),
+  ),
   interactionMode: ProviderInteractionMode.pipe(
     Schema.withDecodingDefault(Effect.succeed(DEFAULT_PROVIDER_INTERACTION_MODE)),
   ),
@@ -1275,7 +1279,7 @@ export const ThreadMetaUpdatedPayload = Schema.Struct({
 
 export const ThreadRuntimeModeSetPayload = Schema.Struct({
   threadId: ThreadId,
-  runtimeMode: RuntimeMode,
+  runtimeMode: LegacyClientRuntimeMode,
   updatedAt: IsoDateTime,
 });
 
@@ -1304,7 +1308,9 @@ export const ThreadTurnStartRequestedPayload = Schema.Struct({
   messageId: MessageId,
   modelSelection: Schema.optional(ModelSelection),
   titleSeed: Schema.optional(TrimmedNonEmptyString),
-  runtimeMode: RuntimeMode.pipe(Schema.withDecodingDefault(Effect.succeed(DEFAULT_RUNTIME_MODE))),
+  runtimeMode: LegacyClientRuntimeMode.pipe(
+    Schema.withDecodingDefault(Effect.succeed(DEFAULT_RUNTIME_MODE)),
+  ),
   interactionMode: ProviderInteractionMode.pipe(
     Schema.withDecodingDefault(Effect.succeed(DEFAULT_PROVIDER_INTERACTION_MODE)),
   ),

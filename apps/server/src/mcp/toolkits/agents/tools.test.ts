@@ -1,11 +1,13 @@
 import { expect, it } from "@effect/vitest";
+import { ThreadId } from "@t3tools/contracts";
 import * as Effect from "effect/Effect";
 import * as Schema from "effect/Schema";
 
-import { AgentManageInput, AgentRunInput } from "./tools.ts";
+import { AgentManageInput, AgentRunInput, AgentRunResult } from "./tools.ts";
 
 const decodeRun = Schema.decodeUnknownEffect(AgentRunInput);
 const decodeManage = Schema.decodeUnknownEffect(AgentManageInput);
+const encodeRunResult = Schema.encodeUnknownEffect(AgentRunResult);
 
 it.effect("accepts an exact provider/model selection with reasoning options", () =>
   Effect.gen(function* () {
@@ -67,5 +69,27 @@ it.effect("bounds wait duration and transcript size", () =>
         decodeManage({ operation: "get_log", sessionId: "agent-1", maxChars: 100_001 }),
       ))._tag,
     ).toBe("Failure");
+  }),
+);
+
+it.effect("reports the semantic read-only mode in child summaries", () =>
+  Effect.gen(function* () {
+    const encoded = yield* encodeRunResult({
+      operation: "start",
+      sessions: [
+        {
+          sessionId: ThreadId.make("agent-read-only"),
+          parentThreadId: ThreadId.make("thread-parent"),
+          title: "Read-only review",
+          modelSelection: { instanceId: "claudeAgent", model: "claude-fable-5" },
+          runtimeMode: "read-only",
+          state: "running",
+          createdAt: "2026-08-25T00:00:00.000Z",
+          updatedAt: "2026-08-25T00:00:00.000Z",
+        },
+      ],
+    });
+
+    expect(encoded.sessions[0]?.runtimeMode).toBe("read-only");
   }),
 );

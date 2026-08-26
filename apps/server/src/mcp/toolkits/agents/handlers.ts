@@ -1,5 +1,3 @@
-import * as NodeOS from "node:os";
-
 import {
   CommandId,
   MessageId,
@@ -19,6 +17,7 @@ import * as Path from "effect/Path";
 import * as Schema from "effect/Schema";
 
 import * as McpInvocationContext from "../../McpInvocationContext.ts";
+import { ServerConfig } from "../../../config.ts";
 import {
   OrchestrationEngineService,
   type OrchestrationAgentSpawnRecord,
@@ -190,6 +189,7 @@ function pathIsInside(path: Path.Path, parent: string, candidate: string): boole
 
 const validateReviewWorkspace = Effect.fn("AgentToolkit.validateReviewWorkspace")(function* (
   workspacePath: string,
+  reviewSnapshotsDirectory: string,
 ) {
   const operation = "start";
   const fileSystem = yield* FileSystem.FileSystem;
@@ -197,14 +197,14 @@ const validateReviewWorkspace = Effect.fn("AgentToolkit.validateReviewWorkspace"
   if (!path.isAbsolute(workspacePath)) {
     return yield* fail(operation, "invalid-input", "workspacePath must be absolute.");
   }
-  const canonicalTempRoot = yield* fileSystem
-    .realPath(NodeOS.tmpdir())
+  const canonicalReviewRoot = yield* fileSystem
+    .realPath(path.resolve(reviewSnapshotsDirectory))
     .pipe(
       Effect.mapError(() =>
         fail(
           operation,
           "internal-error",
-          "The operating-system temporary directory is unavailable.",
+          "The configured T3 Code review directory is unavailable.",
         ),
       ),
     );
@@ -215,11 +215,11 @@ const validateReviewWorkspace = Effect.fn("AgentToolkit.validateReviewWorkspace"
         fail(operation, "invalid-input", `Review workspace '${workspacePath}' does not exist.`),
       ),
     );
-  if (!pathIsInside(path, canonicalTempRoot, canonicalWorkspace)) {
+  if (!pathIsInside(path, canonicalReviewRoot, canonicalWorkspace)) {
     return yield* fail(
       operation,
       "invalid-input",
-      "A read-only review workspace must be a child of the operating-system temporary directory.",
+      "A read-only review workspace must be a child of the configured T3 Code review directory.",
     );
   }
   const stats = yield* fileSystem
@@ -274,6 +274,7 @@ const spawnOne = Effect.fn("AgentToolkit.spawnOne")(function* (input: {
   readonly threadId: ThreadId;
 }) {
   const operation = "start";
+  const path = yield* Path.Path;
   const providerMatch = findProvider(input.providers, input.spec.modelSelection);
   if (
     providerMatch === undefined ||
@@ -322,7 +323,10 @@ const spawnOne = Effect.fn("AgentToolkit.spawnOne")(function* (input: {
   const reviewWorkspace =
     input.spec.workspacePath === undefined
       ? undefined
-      : yield* validateReviewWorkspace(input.spec.workspacePath);
+      : yield* validateReviewWorkspace(
+          input.spec.workspacePath,
+          path.join((yield* ServerConfig).baseDir, "review-snapshots"),
+        );
   const runtimeMode = access === "read-only" ? "read-only" : "approval-required";
   const title =
     input.spec.title ??
@@ -349,6 +353,14 @@ const spawnOne = Effect.fn("AgentToolkit.spawnOne")(function* (input: {
       branch: reviewWorkspace === undefined ? input.parent.branch : null,
       worktreePath: reviewWorkspace ?? input.parent.worktreePath,
       spawn,
+      createdAt,
+    });
+  } else if (access === "read-only") {
+    yield* engine.dispatch({
+      type: "thread.runtime-mode.set",
+      commandId: CommandId.make(`server:agent-runtime:${spawnId}`),
+      threadId,
+      runtimeMode,
       createdAt,
     });
   }

@@ -39,7 +39,8 @@ to `approval-required`. The tool schema exposes model choice and provider
 options, but no arbitrary runtime-mode override. A child may explicitly request
 the narrower `read-only` access policy. Only that policy accepts a custom
 working directory, and only after the server canonicalizes it, verifies it is
-beneath the operating-system temporary directory, and reads the fixed
+beneath the configured T3 Code base directory's `review-snapshots` directory,
+and reads the fixed
 `.t3code-review-snapshot` attestation marker. The child thread stores that
 canonical path as its worktree with no branch.
 
@@ -47,8 +48,12 @@ Provider adapters enforce read-only mode independently: Codex uses a read-only,
 networkless sandbox and removes MCP/web-search launch configuration; Claude
 loads only Read, Grep, and Glob with `dontAsk` and no settings sources or T3 MCP;
 OpenCode installs a deny-by-default permission ruleset; Cursor and Grok
-automatically choose a provider-supplied rejection option for every ACP
-permission request. All adapters omit the T3 MCP endpoint in read-only mode.
+automatically reject every ACP permission request. Grok additionally starts in
+its strict sandbox with `dontAsk`, the `explore` agent profile, only
+`read_file`, `list_dir`, and `grep`, and web search, subagents, leader mode,
+write tools, shell tools, and MCP denied. Resumed Grok sessions must carry the
+current read-only profile attestation. All adapters omit the T3 MCP endpoint in
+read-only mode.
 
 Current limits are depth 2, eight active descendants, 32 unarchived descendants,
 and eight starts per call.
