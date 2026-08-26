@@ -33,6 +33,47 @@ describe("buildGrokAcpSpawnInput", () => {
       },
     });
   });
+
+  it("forces Grok's strict read-only capability boundary for read-only runtimes", () => {
+    const spawn = buildGrokAcpSpawnInput(
+      { binaryPath: "/usr/local/bin/grok" },
+      "/Users/test/.t3/review-snapshots/seer-review-123/snapshot",
+      { GROK_SANDBOX: "off" },
+      "read-only",
+    );
+
+    expect(spawn).toEqual({
+      command: "/usr/local/bin/grok",
+      args: [
+        "--permission-mode",
+        "dontAsk",
+        "--tools",
+        "read_file,list_dir,grep",
+        "--disable-web-search",
+        "--no-subagents",
+        "--deny",
+        "Bash",
+        "--deny",
+        "Edit",
+        "--deny",
+        "Write",
+        "--deny",
+        "MCPTool",
+        "--deny",
+        "WebFetch",
+        "--deny",
+        "WebSearch",
+        "agent",
+        "--no-leader",
+        "stdio",
+      ],
+      cwd: "/Users/test/.t3/review-snapshots/seer-review-123/snapshot",
+      env: {
+        GROK_SANDBOX: "strict",
+        GROK_OAUTH2_REFERRER: "t3code",
+      },
+    });
+  });
 });
 
 describe("applyGrokAcpModelSelection", () => {

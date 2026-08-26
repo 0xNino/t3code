@@ -206,6 +206,81 @@ it.layer(grokAdapterTestLayer)("GrokAdapterLive", (it) => {
     }),
   );
 
+  it.effect("requests Grok's read-only explore profile for read-only sessions", () =>
+    Effect.gen(function* () {
+      const threadId = ThreadId.make("grok-read-only-agent-profile");
+      const tempDir = yield* Effect.promise(() =>
+        NodeFSP.mkdtemp(NodePath.join(NodeOS.tmpdir(), "grok-read-only-profile-")),
+      );
+      const requestLogPath = NodePath.join(tempDir, "requests.ndjson");
+      const wrapperPath = yield* Effect.promise(() =>
+        makeMockGrokWrapper({ T3_ACP_REQUEST_LOG_PATH: requestLogPath }),
+      );
+      const adapter = yield* makeTestAdapter(wrapperPath);
+
+      const session = yield* adapter.startSession({
+        threadId,
+        provider: ProviderDriverKind.make("grok"),
+        cwd: process.cwd(),
+        runtimeMode: "read-only",
+        resumeCursor: {
+          schemaVersion: 1,
+          sessionId: "weaker-read-only-session",
+          agentProfile: "explore",
+        },
+      });
+
+      const requests = yield* Effect.promise(() => readJsonLines(requestLogPath));
+      const sessionNew = requests.find((entry) => entry.method === "session/new");
+      assert.equal(
+        (sessionNew?.params as { readonly _meta?: { readonly agentProfile?: unknown } } | undefined)
+          ?._meta?.agentProfile,
+        "explore",
+      );
+      assert.deepStrictEqual(session.resumeCursor, {
+        schemaVersion: 1,
+        sessionId: "mock-session-1",
+        agentProfile: "explore",
+        readOnlyPolicyVersion: 4,
+      });
+
+      yield* adapter.stopSession(threadId);
+    }),
+  );
+
+  it.effect("resumes read-only Grok sessions attested with the explore profile", () =>
+    Effect.gen(function* () {
+      const threadId = ThreadId.make("grok-read-only-attested-resume");
+      const tempDir = yield* Effect.promise(() =>
+        NodeFSP.mkdtemp(NodePath.join(NodeOS.tmpdir(), "grok-read-only-resume-")),
+      );
+      const requestLogPath = NodePath.join(tempDir, "requests.ndjson");
+      const wrapperPath = yield* Effect.promise(() =>
+        makeMockGrokWrapper({ T3_ACP_REQUEST_LOG_PATH: requestLogPath }),
+      );
+      const adapter = yield* makeTestAdapter(wrapperPath);
+
+      yield* adapter.startSession({
+        threadId,
+        provider: ProviderDriverKind.make("grok"),
+        cwd: process.cwd(),
+        runtimeMode: "read-only",
+        resumeCursor: {
+          schemaVersion: 1,
+          sessionId: "attested-read-only-session",
+          agentProfile: "explore",
+          readOnlyPolicyVersion: 4,
+        },
+      });
+
+      const requests = yield* Effect.promise(() => readJsonLines(requestLogPath));
+      assert.isTrue(requests.some((entry) => entry.method === "session/load"));
+      assert.isFalse(requests.some((entry) => entry.method === "session/new"));
+
+      yield* adapter.stopSession(threadId);
+    }),
+  );
+
   it.effect("closes the ACP child process when a session stops", () =>
     Effect.gen(function* () {
       const threadId = ThreadId.make("grok-stop-session-close");

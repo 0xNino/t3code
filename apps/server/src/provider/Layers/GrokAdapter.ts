@@ -73,6 +73,9 @@ const encodeUnknownJsonStringExit = Schema.encodeUnknownExit(Schema.fromJsonStri
 
 const PROVIDER = ProviderDriverKind.make("grok");
 const GROK_RESUME_VERSION = 1 as const;
+const GROK_READ_ONLY_AGENT_PROFILE = "explore" as const;
+// Confinement-policy generation: older experimental review cursors must not resume.
+const GROK_READ_ONLY_POLICY_VERSION = 4 as const;
 
 function encodeJsonStringForDiagnostics(input: unknown): string | undefined {
   const result = encodeUnknownJsonStringExit(input);
@@ -172,10 +175,20 @@ const resolveSessionCallbackTurnId = (
   return ctx ? resolveCallbackTurnId(ctx) : undefined;
 };
 
-function parseGrokResume(raw: unknown): { sessionId: string } | undefined {
+function parseGrokResume(
+  raw: unknown,
+  runtimeMode: ProviderSession["runtimeMode"],
+): { sessionId: string } | undefined {
   if (!isRecord(raw)) return undefined;
   if (raw.schemaVersion !== GROK_RESUME_VERSION) return undefined;
   if (typeof raw.sessionId !== "string" || !raw.sessionId.trim()) return undefined;
+  if (
+    runtimeMode === "read-only" &&
+    (raw.agentProfile !== GROK_READ_ONLY_AGENT_PROFILE ||
+      raw.readOnlyPolicyVersion !== GROK_READ_ONLY_POLICY_VERSION)
+  ) {
+    return undefined;
+  }
   return { sessionId: raw.sessionId.trim() };
 }
 
@@ -572,7 +585,7 @@ export function makeGrokAdapter(grokSettings: GrokSettings, options?: GrokAdapte
             sessionScopeTransferred ? Effect.void : Scope.close(sessionScope, Exit.void),
           );
 
-          const resumeSessionId = parseGrokResume(input.resumeCursor)?.sessionId;
+          const resumeSessionId = parseGrokResume(input.resumeCursor, input.runtimeMode)?.sessionId;
           const acpNativeLoggers = makeAcpNativeLoggers({
             nativeEventLogger,
             provider: PROVIDER,
@@ -586,8 +599,12 @@ export function makeGrokAdapter(grokSettings: GrokSettings, options?: GrokAdapte
           const acp = yield* makeGrokAcpRuntime({
             grokSettings,
             ...(options?.environment ? { environment: options.environment } : {}),
+            runtimeMode: input.runtimeMode,
             childProcessSpawner,
             cwd,
+            ...(input.runtimeMode === "read-only"
+              ? { newSessionMeta: { agentProfile: GROK_READ_ONLY_AGENT_PROFILE } }
+              : {}),
             ...(resumeSessionId ? { resumeSessionId } : {}),
             clientInfo: { name: "t3-code", version: "0.0.0" },
             ...(mcpSession
@@ -782,6 +799,12 @@ export function makeGrokAdapter(grokSettings: GrokSettings, options?: GrokAdapte
             resumeCursor: {
               schemaVersion: GROK_RESUME_VERSION,
               sessionId: started.sessionId,
+              ...(input.runtimeMode === "read-only"
+                ? {
+                    agentProfile: GROK_READ_ONLY_AGENT_PROFILE,
+                    readOnlyPolicyVersion: GROK_READ_ONLY_POLICY_VERSION,
+                  }
+                : {}),
             },
             createdAt: now,
             updatedAt: now,

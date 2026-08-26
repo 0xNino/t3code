@@ -1,4 +1,4 @@
-import { type GrokSettings, ProviderDriverKind } from "@t3tools/contracts";
+import { type GrokSettings, ProviderDriverKind, type RuntimeMode } from "@t3tools/contracts";
 import * as Crypto from "effect/Crypto";
 import * as Effect from "effect/Effect";
 import * as Layer from "effect/Layer";
@@ -17,6 +17,26 @@ const T3_CODE_OAUTH_REFERRER = "t3code";
 const GROK_AUTH_METHOD_API_KEY = "xai.api_key";
 const GROK_AUTH_METHOD_CACHED_TOKEN = "cached_token";
 const GROK_DRIVER_KIND = ProviderDriverKind.make("grok");
+const GROK_READ_ONLY_ARGS = [
+  "--permission-mode",
+  "dontAsk",
+  "--tools",
+  "read_file,list_dir,grep",
+  "--disable-web-search",
+  "--no-subagents",
+  "--deny",
+  "Bash",
+  "--deny",
+  "Edit",
+  "--deny",
+  "Write",
+  "--deny",
+  "MCPTool",
+  "--deny",
+  "WebFetch",
+  "--deny",
+  "WebSearch",
+] as const;
 
 type GrokAcpRuntimeGrokSettings = Pick<GrokSettings, "binaryPath">;
 
@@ -27,20 +47,26 @@ interface GrokAcpRuntimeInput extends Omit<
   readonly childProcessSpawner: ChildProcessSpawner.ChildProcessSpawner["Service"];
   readonly grokSettings: GrokAcpRuntimeGrokSettings | null | undefined;
   readonly environment?: NodeJS.ProcessEnv;
+  readonly runtimeMode?: RuntimeMode;
 }
 
 export function buildGrokAcpSpawnInput(
   grokSettings: GrokAcpRuntimeGrokSettings | null | undefined,
   cwd: string,
   environment?: NodeJS.ProcessEnv,
+  runtimeMode?: RuntimeMode,
 ): AcpSessionRuntime.AcpSpawnInput {
   return {
     command: grokSettings?.binaryPath || "grok",
-    args: ["agent", "stdio"],
+    args:
+      runtimeMode === "read-only"
+        ? [...GROK_READ_ONLY_ARGS, "agent", "--no-leader", "stdio"]
+        : ["agent", "stdio"],
     cwd,
     env: {
       ...environment,
       [GROK_OAUTH2_REFERRER_ENV]: T3_CODE_OAUTH_REFERRER,
+      ...(runtimeMode === "read-only" ? { GROK_SANDBOX: "strict" } : {}),
     },
   };
 }
@@ -62,7 +88,12 @@ export const makeGrokAcpRuntime = (
     const acpContext = yield* Layer.build(
       AcpSessionRuntime.layer({
         ...input,
-        spawn: buildGrokAcpSpawnInput(input.grokSettings, input.cwd, input.environment),
+        spawn: buildGrokAcpSpawnInput(
+          input.grokSettings,
+          input.cwd,
+          input.environment,
+          input.runtimeMode,
+        ),
         authMethodId: resolveGrokAuthMethodId(input.environment),
       }).pipe(
         Layer.provide(
