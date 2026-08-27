@@ -88,7 +88,7 @@ const PROVIDER = ProviderDriverKind.make("grok");
 const GROK_RESUME_VERSION = 1 as const;
 const GROK_READ_ONLY_AGENT_PROFILE_ID = "t3-code-read-only-v1" as const;
 // Confinement-policy generation: older experimental review cursors must not resume.
-const GROK_READ_ONLY_POLICY_VERSION = 6 as const;
+const GROK_READ_ONLY_POLICY_VERSION = 7 as const;
 const NANOS_PER_MILLI = 1_000_000n;
 // ACP does not expose Grok's private `streaming_reasoning` phase. Once it has
 // emitted standard ACP progress, ten silent minutes is long enough to avoid

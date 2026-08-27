@@ -335,6 +335,8 @@ it.layer(grokAdapterTestLayer)("GrokAdapterLive", (it) => {
             "image_edit",
             "image_to_video",
             "reference_to_video",
+            "search_tool",
+            "use_tool",
             "write",
             "enter_plan_mode",
             "exit_plan_mode",
@@ -346,7 +348,7 @@ it.layer(grokAdapterTestLayer)("GrokAdapterLive", (it) => {
         schemaVersion: 1,
         sessionId: "mock-session-1",
         agentProfile: "t3-code-read-only-v1",
-        readOnlyPolicyVersion: 6,
+        readOnlyPolicyVersion: 7,
       });
 
       yield* adapter.stopSession(threadId);
@@ -374,7 +376,7 @@ it.layer(grokAdapterTestLayer)("GrokAdapterLive", (it) => {
           schemaVersion: 1,
           sessionId: "attested-read-only-session",
           agentProfile: "t3-code-read-only-v1",
-          readOnlyPolicyVersion: 6,
+          readOnlyPolicyVersion: 7,
         },
       });
 

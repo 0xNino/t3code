@@ -26,6 +26,8 @@ const GROK_READ_ONLY_DISALLOWED_TOOLS = [
   "image_edit",
   "image_to_video",
   "reference_to_video",
+  "search_tool",
+  "use_tool",
   "write",
   "enter_plan_mode",
   "exit_plan_mode",

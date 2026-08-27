@@ -172,6 +172,8 @@ describe.runIf(process.env.T3_GROK_ACP_PROBE === "1")("Grok ACP CLI probe", () =
         expect(output).not.toContain("write");
         expect(output).not.toContain("x_user_search");
         expect(output).not.toContain("image_gen");
+        expect(output).not.toContain("search_tool");
+        expect(output).not.toContain("use_tool");
         expect(output).not.toContain("enter_plan_mode");
         expect(output).not.toContain("ask_user_question");
         yield* Fiber.interrupt(events);
