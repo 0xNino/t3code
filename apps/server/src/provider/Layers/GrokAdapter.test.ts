@@ -313,22 +313,40 @@ it.layer(grokAdapterTestLayer)("GrokAdapterLive", (it) => {
         resumeCursor: {
           schemaVersion: 1,
           sessionId: "weaker-read-only-session",
-          agentProfile: "explore",
+          agentProfile: "t3-code-read-only-v1",
         },
       });
 
       const requests = yield* Effect.promise(() => readJsonLines(requestLogPath));
       const sessionNew = requests.find((entry) => entry.method === "session/new");
-      assert.equal(
+      assert.deepStrictEqual(
         (sessionNew?.params as { readonly _meta?: { readonly agentProfile?: unknown } } | undefined)
           ?._meta?.agentProfile,
-        "explore",
+        {
+          name: "t3-code-read-only",
+          description: "Read-only code review with workspace-confined inspection tools.",
+          tools: ["read_file", "list_dir", "grep"],
+          disallowedTools: [
+            "x_user_search",
+            "x_semantic_search",
+            "x_keyword_search",
+            "x_thread_fetch",
+            "image_gen",
+            "image_edit",
+            "image_to_video",
+            "reference_to_video",
+            "write",
+            "enter_plan_mode",
+            "exit_plan_mode",
+            "ask_user_question",
+          ],
+        },
       );
       assert.deepStrictEqual(session.resumeCursor, {
         schemaVersion: 1,
         sessionId: "mock-session-1",
-        agentProfile: "explore",
-        readOnlyPolicyVersion: 5,
+        agentProfile: "t3-code-read-only-v1",
+        readOnlyPolicyVersion: 6,
       });
 
       yield* adapter.stopSession(threadId);
@@ -355,8 +373,8 @@ it.layer(grokAdapterTestLayer)("GrokAdapterLive", (it) => {
         resumeCursor: {
           schemaVersion: 1,
           sessionId: "attested-read-only-session",
-          agentProfile: "explore",
-          readOnlyPolicyVersion: 5,
+          agentProfile: "t3-code-read-only-v1",
+          readOnlyPolicyVersion: 6,
         },
       });
 

@@ -49,11 +49,11 @@ networkless sandbox and removes MCP/web-search launch configuration; Claude
 loads only Read, Grep, and Glob with `dontAsk` and no settings sources or T3 MCP;
 OpenCode installs a deny-by-default permission ruleset; Cursor and Grok
 automatically reject every ACP permission request. Grok additionally starts in
-its strict sandbox with `dontAsk`, the `explore` agent profile, only
-`read_file`, `list_dir`, and `grep`, and web search, subagents, leader mode,
-write tools, shell tools, and MCP denied. Resumed Grok sessions must carry the
-current read-only profile attestation. All adapters omit the T3 MCP endpoint in
-read-only mode.
+its strict sandbox with `dontAsk` and an inline read-only agent profile that
+exposes only `read_file`, `list_dir`, and `grep`; web search, subagents, leader
+mode, write tools, shell tools, and MCP remain denied. Resumed Grok sessions
+must carry the current read-only profile attestation. All adapters omit the T3
+MCP endpoint in read-only mode.
 
 Current limits are depth 2, eight active descendants, 32 unarchived descendants,
 and eight starts per call.

@@ -18,7 +18,7 @@ import * as Stream from "effect/Stream";
 import { ChildProcessSpawner } from "effect/unstable/process";
 import { describe, expect } from "vite-plus/test";
 
-import { makeGrokAcpRuntime } from "./GrokAcpSupport.ts";
+import { GROK_READ_ONLY_AGENT_PROFILE, makeGrokAcpRuntime } from "./GrokAcpSupport.ts";
 
 const makeProbeRuntime = Effect.gen(function* () {
   const childProcessSpawner = yield* ChildProcessSpawner.ChildProcessSpawner;
@@ -124,6 +124,56 @@ describe.runIf(process.env.T3_GROK_ACP_PROBE === "1")("Grok ACP CLI probe", () =
         yield* runtime.drainEvents;
         expect(result.stopReason).toBe("end_turn");
         expect(chunks.join("")).toContain("GROK_T3_OK");
+        yield* Fiber.interrupt(events);
+      }).pipe(Effect.scoped, Effect.provide(NodeServices.layer)),
+  );
+
+  it.effect.skipIf(process.env.T3_GROK_LIVE_TURN !== "1")(
+    "confines a real read-only Grok turn to inspection tools",
+    () =>
+      Effect.gen(function* () {
+        const fileSystem = yield* FileSystem.FileSystem;
+        const cwd = yield* fileSystem.makeTempDirectoryScoped();
+        const childProcessSpawner = yield* ChildProcessSpawner.ChildProcessSpawner;
+        const runtime = yield* makeGrokAcpRuntime({
+          grokSettings: { binaryPath: "grok" },
+          environment: process.env,
+          childProcessSpawner,
+          cwd,
+          runtimeMode: "read-only",
+          newSessionMeta: { agentProfile: GROK_READ_ONLY_AGENT_PROFILE },
+          clientInfo: { name: "t3-grok-read-only-probe", version: "0.0.0" },
+        });
+        yield* runtime.start();
+        const chunks: string[] = [];
+        const events = yield* Stream.runForEach(runtime.getEvents(), (event) => {
+          if (event._tag === "EventStreamBarrier") {
+            return Deferred.succeed(event.acknowledge, undefined);
+          }
+          if (event._tag === "ContentDelta") {
+            chunks.push(event.text);
+          }
+          return Effect.void;
+        }).pipe(Effect.forkChild);
+        const result = yield* runtime.prompt({
+          prompt: [
+            {
+              type: "text",
+              text: "Do not call tools. List the exact tool names exposed to you, one per line, with no commentary.",
+            },
+          ],
+        });
+        yield* runtime.drainEvents;
+        expect(result.stopReason).toBe("end_turn");
+        const output = chunks.join("");
+        expect(output).toContain("read_file");
+        expect(output).toContain("list_dir");
+        expect(output).toContain("grep");
+        expect(output).not.toContain("write");
+        expect(output).not.toContain("x_user_search");
+        expect(output).not.toContain("image_gen");
+        expect(output).not.toContain("enter_plan_mode");
+        expect(output).not.toContain("ask_user_question");
         yield* Fiber.interrupt(events);
       }).pipe(Effect.scoped, Effect.provide(NodeServices.layer)),
   );

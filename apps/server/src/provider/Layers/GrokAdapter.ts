@@ -63,6 +63,7 @@ import {
   applyGrokAcpModelSelection,
   currentGrokModelIdFromSessionSetup,
   currentGrokReasoningEffortFromSessionSetup,
+  GROK_READ_ONLY_AGENT_PROFILE,
   makeGrokAcpRuntime,
   normalizeGrokReasoningEffort,
   resolveGrokAcpBaseModelId,
@@ -85,9 +86,9 @@ const encodeUnknownJsonStringExit = Schema.encodeUnknownExit(Schema.fromJsonStri
 
 const PROVIDER = ProviderDriverKind.make("grok");
 const GROK_RESUME_VERSION = 1 as const;
-const GROK_READ_ONLY_AGENT_PROFILE = "explore" as const;
+const GROK_READ_ONLY_AGENT_PROFILE_ID = "t3-code-read-only-v1" as const;
 // Confinement-policy generation: older experimental review cursors must not resume.
-const GROK_READ_ONLY_POLICY_VERSION = 5 as const;
+const GROK_READ_ONLY_POLICY_VERSION = 6 as const;
 const NANOS_PER_MILLI = 1_000_000n;
 // ACP does not expose Grok's private `streaming_reasoning` phase. Once it has
 // emitted standard ACP progress, ten silent minutes is long enough to avoid
@@ -277,7 +278,7 @@ function parseGrokResume(
   if (typeof raw.sessionId !== "string" || !raw.sessionId.trim()) return undefined;
   if (
     runtimeMode === "read-only" &&
-    (raw.agentProfile !== GROK_READ_ONLY_AGENT_PROFILE ||
+    (raw.agentProfile !== GROK_READ_ONLY_AGENT_PROFILE_ID ||
       raw.readOnlyPolicyVersion !== GROK_READ_ONLY_POLICY_VERSION)
   ) {
     return undefined;
@@ -1299,7 +1300,7 @@ export function makeGrokAdapter(grokSettings: GrokSettings, options?: GrokAdapte
               sessionId: started.sessionId,
               ...(input.runtimeMode === "read-only"
                 ? {
-                    agentProfile: GROK_READ_ONLY_AGENT_PROFILE,
+                    agentProfile: GROK_READ_ONLY_AGENT_PROFILE_ID,
                     readOnlyPolicyVersion: GROK_READ_ONLY_POLICY_VERSION,
                   }
                 : {}),

@@ -30,14 +30,16 @@ const GROK_READ_ONLY_DISALLOWED_TOOLS = [
   "enter_plan_mode",
   "exit_plan_mode",
   "ask_user_question",
-].join(",");
+] as const;
+export const GROK_READ_ONLY_AGENT_PROFILE = {
+  name: "t3-code-read-only",
+  description: "Read-only code review with workspace-confined inspection tools.",
+  tools: ["read_file", "list_dir", "grep"],
+  disallowedTools: GROK_READ_ONLY_DISALLOWED_TOOLS,
+} as const;
 const GROK_READ_ONLY_ARGS = [
   "--permission-mode",
   "dontAsk",
-  "--tools",
-  "read_file,list_dir,grep",
-  "--disallowed-tools",
-  GROK_READ_ONLY_DISALLOWED_TOOLS,
   "--disable-web-search",
   "--no-subagents",
   "--deny",
