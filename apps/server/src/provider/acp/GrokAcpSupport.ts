@@ -17,11 +17,27 @@ const T3_CODE_OAUTH_REFERRER = "t3code";
 const GROK_AUTH_METHOD_API_KEY = "xai.api_key";
 const GROK_AUTH_METHOD_CACHED_TOKEN = "cached_token";
 const GROK_DRIVER_KIND = ProviderDriverKind.make("grok");
+const GROK_READ_ONLY_DISALLOWED_TOOLS = [
+  "x_user_search",
+  "x_semantic_search",
+  "x_keyword_search",
+  "x_thread_fetch",
+  "image_gen",
+  "image_edit",
+  "image_to_video",
+  "reference_to_video",
+  "write",
+  "enter_plan_mode",
+  "exit_plan_mode",
+  "ask_user_question",
+].join(",");
 const GROK_READ_ONLY_ARGS = [
   "--permission-mode",
   "dontAsk",
   "--tools",
   "read_file,list_dir,grep",
+  "--disallowed-tools",
+  GROK_READ_ONLY_DISALLOWED_TOOLS,
   "--disable-web-search",
   "--no-subagents",
   "--deny",

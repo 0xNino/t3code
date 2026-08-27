@@ -328,7 +328,7 @@ it.layer(grokAdapterTestLayer)("GrokAdapterLive", (it) => {
         schemaVersion: 1,
         sessionId: "mock-session-1",
         agentProfile: "explore",
-        readOnlyPolicyVersion: 4,
+        readOnlyPolicyVersion: 5,
       });
 
       yield* adapter.stopSession(threadId);
@@ -356,7 +356,7 @@ it.layer(grokAdapterTestLayer)("GrokAdapterLive", (it) => {
           schemaVersion: 1,
           sessionId: "attested-read-only-session",
           agentProfile: "explore",
-          readOnlyPolicyVersion: 4,
+          readOnlyPolicyVersion: 5,
         },
       });
 
